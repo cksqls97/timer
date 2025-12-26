@@ -7,21 +7,17 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-# 설정 파일 경로 설정
 CFG = resource_path("timer_config.json")
 
 def save(n, s):
-    # 실제 데이터 저장은 실행 파일과 같은 폴더의 로컬 파일에 우선 저장되도록 설정
     local_cfg = "timer_config.json"
     with open(local_cfg, "w", encoding="utf-8") as f:
         json.dump({"n": n, "s": s}, f, ensure_ascii=False)
 
 def load():
-    # 1. 먼저 실행파일 주변에 저장된 로컬 설정이 있는지 확인
     if os.path.exists("timer_config.json"):
         target = "timer_config.json"
     else:
-        # 2. 없다면 빌드 시 포함된 기본 설정(CFG) 사용
         target = CFG
         
     if os.path.exists(target):
@@ -29,7 +25,7 @@ def load():
             with open(target, "r", encoding="utf-8") as f:
                 return json.load(f)
         except: pass
-    return {"n": ["","","",""], "s": ["",""]}
+    return {"n": ["안녕동주야", "브레멘비숍", "외화유출비숍", "돼승끼"], "s": ["손님1", "손님2"]}
 
 ov_root = None
 ov_labels = {}
@@ -67,29 +63,26 @@ def start(names, specs):
         ov_labels['now'].pack(pady=5)
 
         container = tk.Frame(ov_root, bg="#121212", padx=10, pady=10); container.pack(fill="both", expand=True)
-
         rez_box = tk.LabelFrame(container, text=" RESURRECTION ", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
         rez_box.pack(fill="x", pady=(0, 10))
         ov_labels['rez'] = tk.Label(rez_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
         ov_labels['rez'].pack(fill="x")
-
         gst_box = tk.LabelFrame(container, text=" GUEST ", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
         gst_box.pack(fill="x")
         ov_labels['gst'] = tk.Label(gst_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
         ov_labels['gst'].pack(fill="x")
-        
         ov_root.mainloop()
 
     def up():
         now = datetime.datetime.now()
-        cur_hhmm = now.strftime('%H:%M')
+        cur_time = now.strftime('%H%M') # 0548 형식
         o_clip, s_clip, o_ov, s_ov = [], [], [], []
 
         for i in '1234':
             nm = u[i][0].strip()
             if nm:
                 if nt_times[i] and now < nt_times[i]:
-                    o_clip.append(f"{nm} {nt_times[i].strftime('%M')}")
+                    o_clip.append(f"{nm} {nt_times[i].strftime('%M')}") # 이름 17 형식
                     o_ov.append(f"• {nm}: {nt_times[i].strftime('%H:%M')}")
                 else:
                     o_clip.append(nm); o_ov.append(f"• {nm}")
@@ -103,11 +96,12 @@ def start(names, specs):
                 else:
                     s_clip.append(nm); s_ov.append(f"• {nm}")
 
-        # 클립보드 간소화 형식 적용
-        pyperclip.copy(f"현재시간: {cur_hhmm} / {' '.join(o_clip)} / {' '.join(s_clip)}")
+        # 요청하신 간소화 형식: 현재시간 0548 / 이름 17 이름 17 / 이름 01
+        res = f"현재시간 {cur_time} / {' '.join(o_clip)} / {' '.join(s_clip)}"
+        pyperclip.copy(res)
         
         if ov_root:
-            ov_labels['now'].config(text=f"🕒 CURRENT: {cur_hhmm}")
+            ov_labels['now'].config(text=f"🕒 CURRENT: {now.strftime('%H:%M')}")
             ov_labels['rez'].config(text='\n'.join(o_ov) if o_ov else "No Data")
             ov_labels['gst'].config(text='\n'.join(s_ov) if s_ov else "No Data")
 
@@ -123,8 +117,13 @@ def start(names, specs):
         custom_notify("Timer Update", f"{nm} ({tm})", "#2e7d32")
 
     threading.Thread(target=create_overlay, daemon=True).start()
-    for k in u.keys(): keyboard.add_hotkey(f'num {k}', lambda x=k: p(x) if u[x][0].strip() else None)
-    keyboard.add_hotkey('ctrl+alt+num 1', lambda: os._exit(0))
+    
+    # 방향키 등과 겹치지 않게 'num 1' 대신 스캔코드를 사용하거나 명확히 지정
+    for k in u.keys():
+        # keyboard 라이브러리의 넘패드 전용 키워드 사용 (Num Lock이 켜져있어야 함)
+        keyboard.add_hotkey(f'numpad {k}', lambda x=k: p(x) if u[x][0].strip() else None)
+    
+    keyboard.add_hotkey('ctrl+alt+numpad 1', lambda: os._exit(0))
     keyboard.wait()
 
 def ui():
