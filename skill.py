@@ -1,5 +1,6 @@
 import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys
 from tkinter import messagebox
+import time
 
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS
@@ -68,32 +69,42 @@ def start_logic(names, specs):
                 name_lbl.pack(); time_lbl.pack()
                 return card, name_lbl, time_lbl
 
-            tk.Label(main_cont, text="RESURRECTION", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 8, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0,5))
             for i, k in enumerate(['1', '2', '3', '4']):
                 card, nl, tl = create_card(main_cont, "#BB86FC")
                 card.grid(row=(i//2)+1, column=i%2, padx=3, pady=3, sticky="nsew")
                 ov_elements[k] = (nl, tl)
 
-            tk.Label(main_cont, text="GUEST", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 8, "bold")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10,5))
             for i, k in enumerate(['7', '8']):
                 card, nl, tl = create_card(main_cont, "#03DAC6")
                 card.grid(row=4, column=i, padx=3, pady=3, sticky="nsew")
                 ov_elements[k] = (nl, tl)
 
-            # --- 후킹 없는 안정적인 핫키 설정 ---
-            # 윈도우 API 수준에서 넘패드 전용 가상 키 코드(VK) 사용
-            # VK_NUMPAD1(97) ~ VK_NUMPAD8(104)는 일반 방향키와 완전히 분리된 코드입니다.
-            key_map = {'1': 97, '2': 98, '3': 99, '4': 100, '7': 103, '8': 104}
+            # --- 보안 강화형 키 모니터링 (후킹X, 폴링O) ---
+            def key_monitor():
+                # 97=Num1, 98=Num2, 99=Num3, 100=Num4, 103=Num7, 104=Num8
+                key_map = {97: '1', 98: '2', 99: '3', 100: '4', 103: '7', 104: '8'}
+                pressed_state = {k: False for k in key_map.keys()}
+                
+                while True:
+                    # 프로그램이 종료되면 쓰레드도 종료
+                    if not ov_root or not tk.Toplevel.winfo_exists(ov_root): break
+                    
+                    for vk, k_id in key_map.items():
+                        if keyboard.is_pressed(vk):
+                            if not pressed_state[vk]: # 처음 눌린 순간만 실행
+                                if u[k_id][0].strip():
+                                    ov_root.after(0, lambda x=k_id: p(x))
+                                pressed_state[vk] = True
+                        else:
+                            pressed_state[vk] = False
+                    
+                    # 종료 단축키 체크 (Ctrl + Alt + Num1)
+                    if keyboard.is_pressed('ctrl') and keyboard.is_pressed('alt') and keyboard.is_pressed(97):
+                        os._exit(0)
+                        
+                    time.sleep(0.05) # CPU 점유율 방지
 
-            def trigger(k):
-                # NumLock이 켜져 있을 때의 전용 넘패드 코드만 수용
-                if u[k][0].strip(): p(k)
-
-            for k, vk in key_map.items():
-                # add_hotkey에 가상 키 코드를 직접 전달 (후킹보다 낮은 수준의 감시)
-                keyboard.add_hotkey(vk, lambda x=k: trigger(x), suppress=False)
-
-            keyboard.add_hotkey('ctrl+alt+97', lambda: os._exit(0)) # 종료키도 VK 적용
+            threading.Thread(target=key_monitor, daemon=True).start()
             
             up()
             ov_root.mainloop()
@@ -129,7 +140,7 @@ def start_logic(names, specs):
 
         create_overlay()
     except Exception as e:
-        messagebox.showerror("Error", f"Error: {str(e)}"); os._exit(1)
+        messagebox.showerror("Error", str(e)); os._exit(1)
 
 def ui():
     root = tk.Tk(); root.title("Skill Timer"); root.geometry("320x550"); root.configure(bg="#f8f9fa")
