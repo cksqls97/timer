@@ -1,5 +1,4 @@
-import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys, winsound, ctypes
-from tkinter import messagebox
+import keyboard, pyperclip, datetime, tkinter as tk, json, os, sys, winsound, ctypes
 
 # [1] 관리자 권한
 def is_admin():
@@ -9,7 +8,7 @@ if not is_admin():
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
     sys.exit()
 
-# [2] JSON 연동: 같은 디렉토리의 파일을 최우선으로 로드
+# [2] JSON 연동
 CFG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timer_config.json")
 
 def load_config():
@@ -17,29 +16,24 @@ def load_config():
         try:
             with open(CFG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # JSON 내용이 비어있지 않은지 확인
-                if data.get("n") and data.get("s"): return data
-        except Exception as e:
-            print(f"JSON Load Error: {e}")
-    # 파일이 없거나 오류 시 기본값
-    return {"n": ["비숍1", "비숍2", "비숍3", "비숍4"], "s": ["손님1", "손님2"]}
+                if data.get("n"): return data
+        except: pass
+    return {"n": ["비숍1", "비숍2", "비숍3", "비숍4"]}
 
-def save_config(names, guests):
+def save_config(names):
     try:
         with open(CFG_FILE, "w", encoding="utf-8") as f:
-            json.dump({"n": names, "s": guests}, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"JSON Save Error: {e}")
+            json.dump({"n": names}, f, ensure_ascii=False, indent=4)
+    except: pass
 
 # 전역 상태
 ov_root = None
 ov_elements = {}
 resurrection_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
-beep_flags = {'f5': False, 'f6': False}
+guest_beep_flag = False
 
-def start_logic(names, specs):
-    u = {'f1': [names[0], 30], 'f2': [names[1], 30], 'f3': [names[2], 30], 'f4': [names[3], 30],
-         'f5': [specs[0], 13], 'f6': [specs[1] if specs[1].strip() else "", 13]}
+def start_logic(names):
+    u = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
     nt_times = {k: None for k in u.keys()}
 
     def go_to_setup():
@@ -50,15 +44,12 @@ def start_logic(names, specs):
     def update_clipboard():
         now = datetime.datetime.now()
         cur_time = now.strftime('%H%M')
-        o_p, s_p = [], []
+        o_p = []
         for rk in ['f1','f2','f3','f4']:
-            if nt_times[rk] and nt_times[rk] > now: o_p.append(f"{u[rk][0]} {nt_times[rk].strftime('%M')}")
-            else: o_p.append(u[rk][0])
-        for sk in ['f5', 'f6']:
-            if u[sk][0].strip():
-                if nt_times[sk] and nt_times[sk] > now: s_p.append(f"{u[sk][0]} {nt_times[sk].strftime('%M')}")
-                else: s_p.append(u[sk][0])
-        pyperclip.copy(f"현재시간 {cur_time} / {' '.join(o_p)} / {' '.join(s_p)}")
+            if nt_times[rk] and nt_times[rk] > now: o_p.append(f"{u[rk]} {nt_times[rk].strftime('%M')}")
+            else: o_p.append(u[rk])
+        g_str = f"손님 {nt_times['f5'].strftime('%M')}" if nt_times['f5'] and nt_times['f5'] > now else "손님"
+        pyperclip.copy(f"현재시간 {cur_time} / {' '.join(o_p)} / {g_str}")
 
     def create_overlay():
         global ov_root, ov_elements
@@ -66,7 +57,7 @@ def start_logic(names, specs):
         ov_root.attributes("-topmost", True, "-alpha", 0.95)
         ov_root.overrideredirect(True)
         ov_root.configure(bg="#0F0F0F")
-        w, h = 320, 460 
+        w, h = 300, 420 
         ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
@@ -83,9 +74,10 @@ def start_logic(names, specs):
 
         def make_card(parent, k, is_guest=False):
             c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
-            nl = tk.Label(c, text="-", fg="#777", bg="#1E1E1E", font=("Malgun Gothic", 9))
+            # 이름 텍스트 색상을 흰색(#FFFFFF)으로 변경
+            nl = tk.Label(c, text=u[k], fg="#FFFFFF", bg="#1E1E1E", font=("Malgun Gothic", 9, "bold"))
             tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 15, "bold"))
-            msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"))
+            msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2) # 2줄 확보
             nl.pack(pady=(5,0)); tl.pack(); msg.pack(pady=(0,5))
             if not is_guest:
                 for w_ in [c, nl, tl, msg]: w_.bind("<Button-3>", lambda e, x=k: toggle_resurrection(x))
@@ -96,38 +88,31 @@ def start_logic(names, specs):
             c.grid(row=i//2, column=i%2, padx=5, pady=5, sticky="nsew")
             ov_elements[k] = (c, nl, tl, m)
 
-        tk.Label(main, text="GUEST LIMIT (13M)", fg="#555", bg="#0F0F0F", font=("Segoe UI", 8, "bold")).grid(row=2, column=0, columnspan=2, pady=(15, 0))
-        for i, k in enumerate(['f5','f6']):
-            c, nl, tl, m = make_card(main, k, is_guest=True)
-            c.grid(row=3, column=i, padx=5, pady=5, sticky="nsew")
-            ov_elements[k] = (c, nl, tl, m)
+        tk.Label(main, text="GUEST RESURRECTION LIMIT", fg="#555", bg="#0F0F0F", font=("Segoe UI", 8, "bold")).grid(row=2, column=0, columnspan=2, pady=(15, 0))
+        c, nl, tl, m = make_card(main, 'f5', is_guest=True)
+        c.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        ov_elements['f5'] = (c, nl, tl, m)
 
         main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
-        for k in u.keys():
-            keyboard.add_hotkey(k, lambda x=k: on_key(x) if u[x][0].strip() else None, suppress=False)
-        
+        for k in ['f1','f2','f3','f4','f5']: keyboard.add_hotkey(k, lambda x=k: on_key(x), suppress=False)
         def auto_tick():
             if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
         auto_tick(); ov_root.mainloop()
 
     def toggle_resurrection(k):
-        resurrection_alive[k] = not resurrection_alive[k]
-        update_display()
+        resurrection_alive[k] = not resurrection_alive[k]; update_display()
 
     def update_display():
         now = datetime.datetime.now()
-        # 생존 비숍들의 리저 가능 시각 리스트
         alive_times = [nt_times[rk] if nt_times[rk] and nt_times[rk] > now else now 
                        for rk in ['f1','f2','f3','f4'] if resurrection_alive[rk]]
         
         for rk in ['f1','f2','f3','f4']:
             c, nl, tl, msg = ov_elements[rk]
-            nl.config(text=u[rk][0])
             if not resurrection_alive[rk]:
                 c.config(highlightbackground="#441111", bg="#150A0A")
                 for w in [nl, tl, msg]: w.config(bg="#150A0A")
-                tl.config(text="DEATH", fg="#552222"); msg.config(text="")
-                continue
+                tl.config(text="DEATH", fg="#552222"); msg.config(text=""); continue
             
             c.config(bg="#1E1E1E"); nl.config(bg="#1E1E1E"); tl.config(bg="#1E1E1E"); msg.config(bg="#1E1E1E")
             if nt_times[rk] and nt_times[rk] > now:
@@ -135,41 +120,47 @@ def start_logic(names, specs):
                 msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
             else:
                 tl.config(text="READY", fg="#4CAF50")
-                # 핵심 로직: 13분(손님 마지노선) vs 다음 리저 공백 체크
-                # 1. 사망 시 가정
+                # 로직 시뮬레이션
                 tmp_d = list(alive_times)
                 try: tmp_d.remove(now)
                 except: pass
                 next_if_d = min(tmp_d) if tmp_d else now + datetime.timedelta(minutes=99)
-                # 2. 사용 시 가정
                 tmp_u = list(alive_times)
                 try: idx = tmp_u.index(now); tmp_u[idx] = now + datetime.timedelta(minutes=30)
                 except: pass
                 next_if_u = min(tmp_u) if tmp_u else now + datetime.timedelta(minutes=99)
 
-                # 14분 이상 공백 발생 시 경고 (13분 마지노선 대응)
-                if (next_if_d - now).total_seconds() > 14 * 60:
-                    msg.config(text="사망 시 손님 불가", fg="#FF5252")
+                warn_texts = []
+                is_danger = False
+                # 1. 사망 시 체크
+                if (next_if_d - now).total_seconds() > 13 * 60:
+                    warn_texts.append("사망 시 불가")
+                    is_danger = True
+                # 2. 사용 시 체크
+                if (next_if_u - now).total_seconds() > 13 * 60:
+                    warn_texts.append("사용 시 불가")
+
+                if is_danger: # 사망 시 불가 포함된 경우 (빨간색 강조)
+                    msg.config(text="\n".join(warn_texts), fg="#FF5252")
                     c.config(highlightbackground="#FF1744", highlightthickness=2)
-                elif (next_if_use_diff := (next_if_u - now).total_seconds()) > 14 * 60:
-                    msg.config(text="사용 시 손님 불가", fg="#FFD600")
+                elif warn_texts: # 사용 시 불가만 있는 경우 (노란색)
+                    msg.config(text="\n".join(warn_texts), fg="#FFD600")
                     c.config(highlightbackground="#FFD600", highlightthickness=2)
                 else:
                     msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
 
-        min_res = min(alive_times) if alive_times else now + datetime.timedelta(minutes=99)
-        for k in ['f5','f6']:
-            c, nl, tl, msg = ov_elements[k]
-            if not u[k][0].strip(): c.grid_remove(); continue
-            nl.config(text=u[k][0])
-            if nt_times[k] and now < nt_times[k]:
-                tl.config(text=nt_times[k].strftime('%H:%M'), fg="#FF5252")
-                diff = (nt_times[k] - now).total_seconds()
-                m_sec = diff - (min_res - now).total_seconds()
-                msg.config(text="⚠️ 부활 불가" if m_sec < 0 else f"{int(m_sec//60)}m 전", fg="#FF1744" if m_sec < 0 else "#FFAB00")
-                if 58 <= diff <= 61 and not beep_flags[k]:
-                    winsound.Beep(1000, 500); beep_flags[k] = True
-            else: tl.config(text="READY", fg="#03DAC6"); msg.config(text=""); beep_flags[k] = False
+        # 손님 상태
+        c, nl, tl, msg = ov_elements['f5']
+        if nt_times['f5'] and now < nt_times['f5']:
+            tl.config(text=nt_times['f5'].strftime('%H:%M'), fg="#FF5252")
+            diff = (nt_times['f5'] - now).total_seconds()
+            min_res = min(alive_times) if alive_times else now + datetime.timedelta(minutes=99)
+            m_sec = diff - (min_res - now).total_seconds()
+            msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
+            global guest_beep_flag
+            if 58 <= diff <= 61 and not guest_beep_flag:
+                winsound.Beep(1000, 500); guest_beep_flag = True
+        else: tl.config(text="READY", fg="#03DAC6"); msg.config(text=""); guest_beep_flag = False
         ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
 
     def on_key(k):
@@ -177,42 +168,28 @@ def start_logic(names, specs):
         if k in ['f1','f2','f3','f4']:
             if resurrection_alive[k] and (not nt_times[k] or now >= nt_times[k]):
                 nt_times[k] = now + datetime.timedelta(minutes=30)
-        else:
-            nt_times[k] = now + datetime.timedelta(minutes=13); beep_flags[k] = False
+        elif k == 'f5':
+            nt_times['f5'] = now + datetime.timedelta(minutes=13)
+            global guest_beep_flag; guest_beep_flag = False
         update_display(); update_clipboard()
 
     create_overlay()
 
 def show_setup_ui():
-    root = tk.Tk(); root.title("Raid Timer Setup"); root.geometry("420x700"); root.configure(bg="#F0F0F0")
+    root = tk.Tk(); root.title("Raid Timer Setup"); root.geometry("400x550"); root.configure(bg="#F0F0F0")
     root.eval('tk::PlaceWindow . center')
-    
-    # JSON에서 값 불러와서 기본값으로 세팅
     config = load_config()
-    
-    tk.Label(root, text="TIMER SETUP", font=("Segoe UI", 22, "bold"), bg="#F0F0F0", fg="#222").pack(pady=25)
+    tk.Label(root, text="BISHOP SETUP", font=("Segoe UI", 20, "bold"), bg="#F0F0F0", fg="#222").pack(pady=25)
     f = tk.Frame(root, bg="#F0F0F0"); f.pack(padx=40, fill="x")
-    
-    def add_e(parent, txt, d):
-        r = tk.Frame(parent, bg="#F0F0F0"); r.pack(fill="x", pady=7)
-        tk.Label(r, text=txt, width=12, anchor="w", bg="#F0F0F0", font=("Segoe UI", 9)).pack(side=tk.LEFT)
-        e = tk.Entry(r, font=("Segoe UI", 11), bd=1, relief="solid"); e.insert(0, d); e.pack(side=tk.LEFT, expand=True, fill="x", padx=5)
-        return e
-
-    tk.Label(f, text="RESURRECTION MEMBERS", fg="#6200EE", font=("Segoe UI", 10, "bold"), bg="#F0F0F0").pack(anchor="w")
-    n_ents = [add_e(f, f"Member {i+1}", config["n"][i]) for i in range(4)]
-    
-    tk.Label(f, text="GUEST MEMBERS", fg="#009688", font=("Segoe UI", 10, "bold"), bg="#F0F0F0").pack(anchor="w", pady=(25, 0))
-    s_ents = [add_e(f, f"Guest {i+1}", config["s"][i]) for i in range(2)]
-
+    ents = []
+    for i in range(4):
+        r = tk.Frame(f, bg="#F0F0F0"); r.pack(fill="x", pady=7)
+        tk.Label(r, text=f"비숍 {i+1}", width=10, anchor="w", bg="#F0F0F0").pack(side=tk.LEFT)
+        e = tk.Entry(r, font=("Segoe UI", 11), bd=1, relief="solid"); e.insert(0, config["n"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", padx=5)
+        ents.append(e)
     def start():
-        nv, sv = [e.get() for e in n_ents], [e.get() for e in s_ents]
-        save_config(nv, sv) # JSON 저장
-        root.destroy()
-        start_logic(nv, sv)
-
-    tk.Button(root, text="START MISSION", command=start, bg="#222", fg="white", font=("Segoe UI", 13, "bold"), pady=15, bd=0, cursor="hand2").pack(pady=45, padx=40, fill="x")
+        nv = [e.get() for e in ents]; save_config(nv); root.destroy(); start_logic(nv)
+    tk.Button(root, text="START MISSION", command=start, bg="#222", fg="white", font=("Segoe UI", 13, "bold"), pady=15, bd=0).pack(pady=40, padx=40, fill="x")
     root.mainloop()
 
-if __name__ == "__main__":
-    show_setup_ui()
+if __name__ == "__main__": show_setup_ui()
