@@ -1,6 +1,5 @@
 import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys
 from tkinter import messagebox
-import time
 
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS
@@ -31,6 +30,7 @@ def custom_notify(title, message, color="#333"):
         nt = tk.Toplevel()
         nt.overrideredirect(True); nt.attributes("-topmost", True)
         w, h = 280, 80
+        # 알림창 위치: 우측 하단 끝
         sx, sy = nt.winfo_screenwidth() - w - 20, nt.winfo_screenheight() - h - 50
         nt.geometry(f"{w}x{h}+{sx}+{sy}"); nt.configure(bg=color)
         tk.Label(nt, text=title, fg="white", bg=color, font=("Malgun Gothic", 10, "bold")).pack(pady=(10, 0))
@@ -41,8 +41,8 @@ def custom_notify(title, message, color="#333"):
 def start_logic(names, specs):
     try:
         u = {
-            '1': [names[0], 30], '2': [names[1], 30], '3': [names[2], 30], '4': [names[3], 30],
-            '7': [specs[0], 13], '8': [specs[1] if specs[1].strip() else "", 13]
+            'f1': [names[0], 30], 'f2': [names[1], 30], 'f3': [names[2], 30], 'f4': [names[3], 30],
+            'f5': [specs[0], 13], 'f6': [specs[1] if specs[1].strip() else "", 13]
         }
         nt_times = {k: None for k in u.keys()}
 
@@ -52,59 +52,52 @@ def start_logic(names, specs):
             ov_root.attributes("-topmost", True); ov_root.overrideredirect(True)
             ov_root.configure(bg="#121212")
             
+            # 오버레이 창 크기 확대
+            w, h = 360, 300
+            # 초기 위치: 알림창(높이 80+여백) 위쪽으로 설정 (화면 하단에서 약 200px 위)
+            sx, sy = ov_root.winfo_screenwidth() - w - 20, ov_root.winfo_screenheight() - h - 180
+            ov_root.geometry(f"{w}x{h}+{sx}+{sy}")
+            
             def sm(e): ov_root.x, ov_root.y = e.x, e.y
             def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
             ov_root.bind("<Button-1>", sm); ov_root.bind("<B1-Motion>", dm)
 
-            header = tk.Frame(ov_root, bg="#3d5afe"); header.pack(fill="x")
-            ov_elements['now'] = tk.Label(header, text="READY", fg="white", bg="#3d5afe", font=("Malgun Gothic", 10, "bold"))
-            ov_elements['now'].pack(pady=5)
+            header = tk.Frame(ov_root, bg="#3d5afe", height=45); header.pack(fill="x")
+            ov_elements['now'] = tk.Label(header, text="READY", fg="white", bg="#3d5afe", font=("Malgun Gothic", 12, "bold"))
+            ov_elements['now'].pack(pady=8)
 
-            main_cont = tk.Frame(ov_root, bg="#121212", padx=10, pady=10); main_cont.pack()
+            main_cont = tk.Frame(ov_root, bg="#121212", padx=15, pady=10); main_cont.pack(fill="both", expand=True)
 
+            # 개별 박스(카드) 생성 함수 - 사이즈 키움
             def create_card(parent, title_color):
-                card = tk.Frame(parent, bg="#262626", bd=1, relief="ridge", padx=5, pady=5)
-                name_lbl = tk.Label(card, text="-", fg="white", bg="#262626", font=("Malgun Gothic", 9, "bold"))
-                time_lbl = tk.Label(card, text="READY", fg=title_color, bg="#262626", font=("Malgun Gothic", 8))
+                card = tk.Frame(parent, bg="#262626", bd=2, relief="ridge", padx=10, pady=8)
+                name_lbl = tk.Label(card, text="-", fg="white", bg="#262626", font=("Malgun Gothic", 10, "bold"))
+                time_lbl = tk.Label(card, text="READY", fg=title_color, bg="#262626", font=("Malgun Gothic", 9))
                 name_lbl.pack(); time_lbl.pack()
                 return card, name_lbl, time_lbl
 
-            for i, k in enumerate(['1', '2', '3', '4']):
+            # 리저 섹션 (F1-F4)
+            tk.Label(main_cont, text="RESURRECTION (F1-F4)", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0,8))
+            for i, k in enumerate(['f1', 'f2', 'f3', 'f4']):
                 card, nl, tl = create_card(main_cont, "#BB86FC")
-                card.grid(row=(i//2)+1, column=i%2, padx=3, pady=3, sticky="nsew")
+                card.grid(row=(i//2)+1, column=i%2, padx=5, pady=5, sticky="nsew")
                 ov_elements[k] = (nl, tl)
 
-            for i, k in enumerate(['7', '8']):
+            # 손님 섹션 (F5-F6)
+            tk.Label(main_cont, text="GUEST (F5-F6)", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 9, "bold")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(12,8))
+            for i, k in enumerate(['f5', 'f6']):
                 card, nl, tl = create_card(main_cont, "#03DAC6")
-                card.grid(row=4, column=i, padx=3, pady=3, sticky="nsew")
+                card.grid(row=4, column=i, padx=5, pady=5, sticky="nsew")
                 ov_elements[k] = (nl, tl)
 
-            # --- 보안 강화형 키 모니터링 (후킹X, 폴링O) ---
-            def key_monitor():
-                # 97=Num1, 98=Num2, 99=Num3, 100=Num4, 103=Num7, 104=Num8
-                key_map = {97: '1', 98: '2', 99: '3', 100: '4', 103: '7', 104: '8'}
-                pressed_state = {k: False for k in key_map.keys()}
-                
-                while True:
-                    # 프로그램이 종료되면 쓰레드도 종료
-                    if not ov_root or not tk.Toplevel.winfo_exists(ov_root): break
-                    
-                    for vk, k_id in key_map.items():
-                        if keyboard.is_pressed(vk):
-                            if not pressed_state[vk]: # 처음 눌린 순간만 실행
-                                if u[k_id][0].strip():
-                                    ov_root.after(0, lambda x=k_id: p(x))
-                                pressed_state[vk] = True
-                        else:
-                            pressed_state[vk] = False
-                    
-                    # 종료 단축키 체크 (Ctrl + Alt + Num1)
-                    if keyboard.is_pressed('ctrl') and keyboard.is_pressed('alt') and keyboard.is_pressed(97):
-                        os._exit(0)
-                        
-                    time.sleep(0.05) # CPU 점유율 방지
+            # 열 너비 균등 배분
+            main_cont.grid_columnconfigure(0, weight=1); main_cont.grid_columnconfigure(1, weight=1)
 
-            threading.Thread(target=key_monitor, daemon=True).start()
+            # --- 단축키 등록 ---
+            for k in u.keys():
+                keyboard.add_hotkey(k, lambda x=k: p(x) if u[x][0].strip() else None, suppress=False)
+            
+            keyboard.add_hotkey('ctrl+alt+q', lambda: os._exit(0))
             
             up()
             ov_root.mainloop()
@@ -120,18 +113,18 @@ def start_logic(names, specs):
                 nl.config(text=nm)
                 if nt_times[k] and now < nt_times[k]:
                     tl.config(text=nt_times[k].strftime('%H:%M'), fg="#ff5252")
-                    target = o_clip if k in '1234' else s_clip
+                    target = o_clip if k in ['f1', 'f2', 'f3', 'f4'] else s_clip
                     target.append(f"{nm} {nt_times[k].strftime('%M')}")
                 else:
                     tl.config(text="READY", fg="#4caf50")
-                    target = o_clip if k in '1234' else s_clip
+                    target = o_clip if k in ['f1', 'f2', 'f3', 'f4'] else s_clip
                     target.append(nm)
             pyperclip.copy(f"현재시간 {cur_time_clip} / {' '.join(o_clip)} / {' '.join(s_clip)}")
             if ov_root: ov_elements['now'].config(text=f"🕒 {now.strftime('%H:%M')}")
 
         def p(k):
             now = datetime.datetime.now()
-            if k in '1234' and nt_times[k] and now < nt_times[k]:
+            if k in ['f1', 'f2', 'f3', 'f4'] and nt_times[k] and now < nt_times[k]:
                 custom_notify("Cooldown", f"{u[k][0]}: On cooldown!", "#d32f2f")
                 return
             nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
