@@ -1,50 +1,23 @@
-name: Build Dual Skill Timers
-
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
+name: Build
+on: [push]
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4 # 최신 버전 업데이트
-
-    - name: Set up Python
-      uses: actions/setup-python@v5 # 최신 버전 업데이트
-      with:
-        python-version: '3.9'
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller keyboard pyperclip
-
-    - name: Build Regular Version
-      run: |
-        pyinstaller --noconsole --onefile --add-data "timer_config.json;." --name "SkillTimer_v1.0" skill.py
-
-    - name: Build Test Version
-      run: |
-        pyinstaller --noconsole --onefile --add-data "timer_config.json;." --name "SkillTimer_TEST" skill_test.py
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4 # v3에서 v4로 수정 (핵심 해결책)
-      with:
-        name: SkillTimer-Executables
-        path: dist/*.exe
-        compression-level: 9 # 업로드 효율을 위해 압축 레벨 설정 가능
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v2 # 최신 버전 업데이트
-      with:
-        files: |
-          dist/SkillTimer_v1.0.exe
-          dist/SkillTimer_TEST.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller keyboard pyperclip
+      - name: Build EXE
+        # JSON 파일을 EXE 내부에 포함하는 옵션 추가
+        run: pyinstaller --onefile --noconsole --uac-admin --add-data "timer_config.json;." skill.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkillTimer-Final
+          path: dist/skill.exe
