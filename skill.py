@@ -30,26 +30,27 @@ def start_timer(names, specials):
 
     def update_clipboard():
         now = datetime.datetime.now()
-        # 일반 인원 (1~4)
+        # 리저 인원 (1~4)
         out = []
         for i in range(1, 5):
             name, cool, next_t = users[str(i)]
-            out.append(f"{name} {next_t.strftime('%H:%M')}" if next_t and now < next_t else name)
+            if name.strip():
+                out.append(f"{name} {next_t.strftime('%H:%M')}" if next_t and now < next_t else name)
         
-        # 특별 인원 (5~6)
+        # 손님 인원 (5~6)
         spec_out = []
         for i in range(5, 7):
             name, cool, next_t = users[str(i)]
-            if name.strip(): # 이름이 있을 때만 표시
+            if name.strip():
                 spec_out.append(f"{name} {next_t.strftime('%H:%M')}" if next_t and now < next_t else name)
         
         final_text = f"{' '.join(out)} / {' '.join(spec_out)}"
         pyperclip.copy(final_text)
 
-    # 시작 버튼 누르자마자 클립보드 초기화 (AAA BBB CCC DDD / EEE FFF 형식)
+    # 시작하자마자 클립보드 초기화
     update_clipboard()
 
-    # 키 등록
+    # 키 등록 (Num 1~6)
     for i in range(1, 7):
         keyboard.add_hotkey(f'num {i}', lambda k=str(i): (
             users[k].__setitem__(2, datetime.datetime.now() + datetime.timedelta(minutes=users[k][1])),
@@ -60,11 +61,12 @@ def start_timer(names, specials):
 
 def create_ui():
     root = tk.Tk()
-    root.title("스킬 타이머 Pro")
+    root.title("스킬 타이머 Pro (리저/손님)")
     root.geometry("320x480")
     root.configure(bg="#f5f5f5")
 
-    config = load_config() or {"names": ["AAA", "BBB", "CCC", "DDD"], "specials": ["EEE", "FFF"]}
+    # 기본값은 공란으로 설정
+    config = load_config() or {"names": ["", "", "", ""], "specials": ["", ""]}
 
     tk.Label(root, text="인원 이름 설정", font=("Malgun Gothic", 12, "bold"), bg="#f5f5f5", pady=15).pack()
 
@@ -72,7 +74,7 @@ def create_ui():
     for i in range(4):
         f = tk.Frame(root, bg="#f5f5f5")
         f.pack(pady=3)
-        tk.Label(f, text=f"{i+1}번 (30m):", bg="#f5f5f5", width=10).pack(side=tk.LEFT)
+        tk.Label(f, text=f"리저{i+1} (30m):", bg="#f5f5f5", width=12).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15)
         e.insert(0, config["names"][i])
         e.pack(side=tk.LEFT)
@@ -84,7 +86,7 @@ def create_ui():
     for i in range(2):
         f = tk.Frame(root, bg="#f5f5f5")
         f.pack(pady=3)
-        tk.Label(f, text=f"특{i+1} (NUM{i+5}):", bg="#f5f5f5", width=10).pack(side=tk.LEFT)
+        tk.Label(f, text=f"손님{i+1} (Num{i+5}):", bg="#f5f5f5", width=12).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15)
         e.insert(0, config["specials"][i])
         e.pack(side=tk.LEFT)
@@ -93,14 +95,13 @@ def create_ui():
     def on_start():
         names = [e.get() for e in entries]
         specials = [e.get() for e in spec_entries]
-        save_config(names, specials) # 이름 저장
+        save_config(names, specials)
         root.destroy()
         start_timer(names, specials)
 
     tk.Button(root, text="저장 및 타이머 시작", command=on_start, width=20, bg="#2196F3", fg="white", font=("Malgun Gothic", 10, "bold"), pady=10).pack(pady=20)
-    tk.Label(root, text="특2가 공란이면 기존과 동일하게 작동합니다.", font=("Malgun Gothic", 8), fg="#888", bg="#f5f5f5").pack()
+    tk.Label(root, text="손님2가 공란이면 리스트에 나타나지 않습니다.", font=("Malgun Gothic", 8), fg="#888", bg="#f5f5f5").pack()
 
     root.mainloop()
 
-if __name__ == "__main__":
-    create_ui()
+if __name__ ==
