@@ -1,29 +1,24 @@
 import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys
+from tkinter import messagebox
 
 def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+    try: base_path = sys._MEIPASS
+    except Exception: base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
 CFG = resource_path("timer_config.json")
 
 def save(n, s):
-    local_cfg = "timer_config.json"
-    with open(local_cfg, "w", encoding="utf-8") as f:
-        json.dump({"n": n, "s": s}, f, ensure_ascii=False)
+    try:
+        with open("timer_config.json", "w", encoding="utf-8") as f:
+            json.dump({"n": n, "s": s}, f, ensure_ascii=False)
+    except: pass
 
 def load():
-    if os.path.exists("timer_config.json"):
-        target = "timer_config.json"
-    else:
-        target = CFG
-        
+    target = "timer_config.json" if os.path.exists("timer_config.json") else CFG
     if os.path.exists(target):
         try:
-            with open(target, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(target, "r", encoding="utf-8") as f: return json.load(f)
         except: pass
     return {"n": ["안녕동주야", "브레멘비숍", "외화유출비숍", "돼승끼"], "s": ["손님1", "손님2"]}
 
@@ -42,89 +37,85 @@ def custom_notify(title, message, color="#333"):
         nt.after(3000, nt.destroy); nt.mainloop()
     threading.Thread(target=run, daemon=True).start()
 
-def start(names, specs):
-    u = {'1':[names[0],30],'2':[names[1],30],'3':[names[2],30],'4':[names[3],30],'7':[specs[0],13],'8':[specs[1] if specs[1].strip() else "",13]}
-    nt_times = {k: None for k in u.keys()}
+def start_logic(names, specs):
+    try:
+        u = {'1':[names[0],30],'2':[names[1],30],'3':[names[2],30],'4':[names[3],30],'7':[specs[0],13],'8':[specs[1] if specs[1].strip() else "",13]}
+        nt_times = {k: None for k in u.keys()}
 
-    def create_overlay():
-        global ov_root, ov_labels
-        ov_root = tk.Tk()
-        ov_root.attributes("-topmost", True); ov_root.overrideredirect(True)
-        w, h = 300, 240
-        sx, sy = ov_root.winfo_screenwidth()-w-20, ov_root.winfo_screenheight()-h-140
-        ov_root.geometry(f"{w}x{h}+{sx}+{sy}"); ov_root.configure(bg="#121212")
-        
-        def sm(e): ov_root.x, ov_root.y = e.x, e.y
-        def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
-        ov_root.bind("<Button-1>", sm); ov_root.bind("<B1-Motion>", dm)
+        def create_overlay():
+            global ov_root, ov_labels
+            ov_root = tk.Tk()
+            ov_root.title("Overlay")
+            ov_root.attributes("-topmost", True); ov_root.overrideredirect(True)
+            w, h = 300, 240
+            sx, sy = ov_root.winfo_screenwidth()-w-20, ov_root.winfo_screenheight()-h-140
+            ov_root.geometry(f"{w}x{h}+{sx}+{sy}"); ov_root.configure(bg="#121212")
+            
+            def sm(e): ov_root.x, ov_root.y = e.x, e.y
+            def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
+            ov_root.bind("<Button-1>", sm); ov_root.bind("<B1-Motion>", dm)
 
-        header = tk.Frame(ov_root, bg="#3700B3", height=35); header.pack(fill="x")
-        ov_labels['now'] = tk.Label(header, text="READY", fg="white", bg="#3700B3", font=("Malgun Gothic", 10, "bold"))
-        ov_labels['now'].pack(pady=5)
+            header = tk.Frame(ov_root, bg="#3700B3", height=35); header.pack(fill="x")
+            ov_labels['now'] = tk.Label(header, text="READY", fg="white", bg="#3700B3", font=("Malgun Gothic", 10, "bold"))
+            ov_labels['now'].pack(pady=5)
 
-        container = tk.Frame(ov_root, bg="#121212", padx=10, pady=10); container.pack(fill="both", expand=True)
-        rez_box = tk.LabelFrame(container, text=" RESURRECTION ", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
-        rez_box.pack(fill="x", pady=(0, 10))
-        ov_labels['rez'] = tk.Label(rez_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
-        ov_labels['rez'].pack(fill="x")
-        gst_box = tk.LabelFrame(container, text=" GUEST ", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
-        gst_box.pack(fill="x")
-        ov_labels['gst'] = tk.Label(gst_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
-        ov_labels['gst'].pack(fill="x")
-        ov_root.mainloop()
+            container = tk.Frame(ov_root, bg="#121212", padx=10, pady=10); container.pack(fill="both", expand=True)
+            rez_box = tk.LabelFrame(container, text=" RESURRECTION ", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
+            rez_box.pack(fill="x", pady=(0, 10))
+            ov_labels['rez'] = tk.Label(rez_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
+            ov_labels['rez'].pack(fill="x")
+            gst_box = tk.LabelFrame(container, text=" GUEST ", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 8, "bold"), padx=8, pady=8, relief="solid", bd=1)
+            gst_box.pack(fill="x")
+            ov_labels['gst'] = tk.Label(gst_box, text="-", fg="white", bg="#121212", font=("Malgun Gothic", 9), justify=tk.LEFT, anchor="nw", wraplength=250)
+            ov_labels['gst'].pack(fill="x")
+            
+            # 핫키 등록 (오버레이 루프 안에서 수행)
+            for k in u.keys():
+                keyboard.add_hotkey(f'num {k}', lambda x=k: p(x) if u[x][0].strip() else None, suppress=False)
+            
+            keyboard.add_hotkey('ctrl+alt+num 1', lambda: os._exit(0))
+            
+            ov_root.mainloop()
 
-    def up():
-        now = datetime.datetime.now()
-        cur_time = now.strftime('%H%M') # 0548 형식
-        o_clip, s_clip, o_ov, s_ov = [], [], [], []
+        def up():
+            now = datetime.datetime.now()
+            cur_time = now.strftime('%H%M')
+            o_clip, s_clip, o_ov, s_ov = [], [], [], []
+            for i in '1234':
+                nm = u[i][0].strip()
+                if nm:
+                    if nt_times[i] and now < nt_times[i]:
+                        o_clip.append(f"{nm} {nt_times[i].strftime('%M')}")
+                        o_ov.append(f"• {nm}: {nt_times[i].strftime('%H:%M')}")
+                    else: o_clip.append(nm); o_ov.append(f"• {nm}")
+            for i in '78':
+                nm = u[i][0].strip()
+                if nm:
+                    if nt_times[i] and now < nt_times[i]:
+                        s_clip.append(f"{nm} {nt_times[i].strftime('%M')}")
+                        s_ov.append(f"• {nm}: {nt_times[i].strftime('%H:%M')}")
+                    else: s_clip.append(nm); s_ov.append(f"• {nm}")
 
-        for i in '1234':
-            nm = u[i][0].strip()
-            if nm:
-                if nt_times[i] and now < nt_times[i]:
-                    o_clip.append(f"{nm} {nt_times[i].strftime('%M')}") # 이름 17 형식
-                    o_ov.append(f"• {nm}: {nt_times[i].strftime('%H:%M')}")
-                else:
-                    o_clip.append(nm); o_ov.append(f"• {nm}")
-        
-        for i in '78':
-            nm = u[i][0].strip()
-            if nm:
-                if nt_times[i] and now < nt_times[i]:
-                    s_clip.append(f"{nm} {nt_times[i].strftime('%M')}")
-                    s_ov.append(f"• {nm}: {nt_times[i].strftime('%H:%M')}")
-                else:
-                    s_clip.append(nm); s_ov.append(f"• {nm}")
+            pyperclip.copy(f"현재시간 {cur_time} / {' '.join(o_clip)} / {' '.join(s_clip)}")
+            if ov_root:
+                ov_labels['now'].config(text=f"🕒 CURRENT: {now.strftime('%H:%M')}")
+                ov_labels['rez'].config(text='\n'.join(o_ov) if o_ov else "No Data")
+                ov_labels['gst'].config(text='\n'.join(s_ov) if s_ov else "No Data")
 
-        # 요청하신 간소화 형식: 현재시간 0548 / 이름 17 이름 17 / 이름 01
-        res = f"현재시간 {cur_time} / {' '.join(o_clip)} / {' '.join(s_clip)}"
-        pyperclip.copy(res)
-        
-        if ov_root:
-            ov_labels['now'].config(text=f"🕒 CURRENT: {now.strftime('%H:%M')}")
-            ov_labels['rez'].config(text='\n'.join(o_ov) if o_ov else "No Data")
-            ov_labels['gst'].config(text='\n'.join(s_ov) if s_ov else "No Data")
+        def p(k):
+            now = datetime.datetime.now()
+            nm = u[k][0]
+            if k in '1234' and nt_times[k] and now < nt_times[k]:
+                custom_notify("Cooldown", f"{nm}: Still on cooldown!", "#d32f2f")
+                return
+            nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
+            up()
+            custom_notify("Timer Update", f"{nm} ({nt_times[k].strftime('%H:%M')})", "#2e7d32")
 
-    def p(k):
-        now = datetime.datetime.now()
-        nm = u[k][0]
-        if k in '1234' and nt_times[k] and now < nt_times[k]:
-            custom_notify("Cooldown", f"{nm}: Still on cooldown!", "#d32f2f")
-            return
-        nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
-        up()
-        tm = nt_times[k].strftime('%H:%M')
-        custom_notify("Timer Update", f"{nm} ({tm})", "#2e7d32")
-
-    threading.Thread(target=create_overlay, daemon=True).start()
-    
-    # 방향키 등과 겹치지 않게 'num 1' 대신 스캔코드를 사용하거나 명확히 지정
-    for k in u.keys():
-        # keyboard 라이브러리의 넘패드 전용 키워드 사용 (Num Lock이 켜져있어야 함)
-        keyboard.add_hotkey(f'numpad {k}', lambda x=k: p(x) if u[x][0].strip() else None)
-    
-    keyboard.add_hotkey('ctrl+alt+numpad 1', lambda: os._exit(0))
-    keyboard.wait()
+        create_overlay()
+    except Exception as e:
+        messagebox.showerror("Error", f"오류 발생: {str(e)}")
+        os._exit(1)
 
 def ui():
     root = tk.Tk()
@@ -143,9 +134,13 @@ def ui():
         f = tk.Frame(root, bg="#f8f9fa"); f.pack(pady=4, padx=25, fill="x")
         tk.Label(f, text=f"손님 {i+1}", width=8, anchor="w", bg="#f8f9fa").pack(side=tk.LEFT)
         e = tk.Entry(f, bd=1, relief="solid"); e.insert(0, config_data["s"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", padx=10); s_ents.append(e)
+
     def go():
         n, s = [e.get() for e in ents], [e.get() for e in s_ents]
-        save(n, s); root.destroy(); start(n, s)
+        save(n, s); root.destroy()
+        # 프로세스 종료 방지를 위해 메인 스레드에서 로직 실행
+        start_logic(n, s)
+
     tk.Button(root, text="START TIMER", command=go, bg="#6200EE", fg="white", font=("Malgun Gothic", 11, "bold"), pady=12).pack(pady=30, padx=25, fill="x")
     root.mainloop()
 
