@@ -1,69 +1,91 @@
 import keyboard
 import pyperclip
 import datetime
-import sys
+import tkinter as tk
+from tkinter import messagebox
 
-def main():
-    print("="*30)
-    print("   클립보드 스킬 타이머 v1.0")
-    print("="*30)
-    
-    try:
-        # 1. 이름 입력 받기
-        names = []
-        for i in range(4):
-            names.append(input(f"{i+1}번 사용자 이름 (30분): "))
-        extra_name = input("5번 특별 사용자 이름 (13분): ")
+def start_timer(names, extra_name):
+    # 타이머 로직 시작
+    users = {
+        '1': [names[0], 30, None],
+        '2': [names[1], 30, None],
+        '3': [names[2], 30, None],
+        '4': [names[3], 30, None],
+        '5': [extra_name, 13, None]
+    }
+
+    def update_clipboard():
+        now = datetime.datetime.now()
+        output = []
+        for i in range(1, 5):
+            name_val, cool, next_t = users[str(i)]
+            if next_t and now < next_t:
+                output.append(f"{name_val} {next_t.strftime('%H:%M')}")
+            else:
+                output.append(name_val)
         
-        users = {
-            '1': [names[0], 30, None],
-            '2': [names[1], 30, None],
-            '3': [names[2], 30, None],
-            '4': [names[3], 30, None],
-            '5': [extra_name, 13, None]
-        }
+        e_name_val, e_cool, e_next_t = users['5']
+        extra_part = f"{e_name_val} {e_next_t.strftime('%H:%M')}" if e_next_t and now < e_next_t else e_name_val
         
-        print("\n" + "-"*30)
-        print("설정 완료! 이제 창을 내려놓으셔도 됩니다.")
-        print("NUMPAD 1~5를 누르면 클립보드에 복사됩니다.")
-        print("종료: Ctrl + C")
-        print("-"*30)
+        final_text = f"{' '.join(output)} / {extra_part}"
+        pyperclip.copy(final_text)
 
-        def update_clipboard():
-            now = datetime.datetime.now()
-            output = []
-            for i in range(1, 5):
-                name_val, cool, next_t = users[str(i)]
-                if next_t and now < next_t:
-                    output.append(f"{name_val} {next_t.strftime('%H:%M')}")
-                else:
-                    output.append(name_val)
-            
-            e_name_val, e_cool, e_next_t = users['5']
-            extra_part = f"{e_name_val} {e_next_t.strftime('%H:%M')}" if e_next_t and now < e_next_t else e_name_val
-            
-            final_text = f"{' '.join(output)} / {extra_part}"
-            pyperclip.copy(final_text)
-            print(f"\r[복사됨]: {final_text}", end="", flush=True)
+    def on_press(key):
+        users[key][2] = datetime.datetime.now() + datetime.timedelta(minutes=users[key][1])
+        update_clipboard()
 
-        def on_press(key):
-            users[key][2] = datetime.datetime.now() + datetime.timedelta(minutes=users[key][1])
-            update_clipboard()
+    # 키 등록
+    for i in range(1, 6):
+        keyboard.add_hotkey(f'num {i}', lambda k=str(i): on_press(k))
 
-        # 키 등록
-        keyboard.add_hotkey('num 1', lambda: on_press('1'))
-        keyboard.add_hotkey('num 2', lambda: on_press('2'))
-        keyboard.add_hotkey('num 3', lambda: on_press('3'))
-        keyboard.add_hotkey('num 4', lambda: on_press('4'))
-        keyboard.add_hotkey('num 5', lambda: on_press('5'))
+    # 백그라운드 대기
+    keyboard.wait()
 
-        keyboard.wait()
+def create_ui():
+    # GUI 설정
+    root = tk.Tk()
+    root.title("스킬 타이머 설정")
+    root.geometry("300x400")
+    root.configure(bg="#f0f0f0")
 
-    except KeyboardInterrupt:
-        print("\n프로그램을 종료합니다.")
-    except Exception as e:
-        print(f"\n에러 발생: {e}")
-        input("\n엔터를 눌러 종료하세요...")
+    # 폰트 및 스타일
+    title_font = ("Malgun Gothic", 14, "bold")
+    label_font = ("Malgun Gothic", 10)
+
+    tk.Label(root, text="사용자 이름 설정", font=title_font, bg="#f0f0f0", pady=20).pack()
+
+    entries = []
+    for i in range(4):
+        frame = tk.Frame(root, bg="#f0f0f0")
+        frame.pack(pady=5)
+        tk.Label(frame, text=f"{i+1}번 (30분):", font=label_font, bg="#f0f0f0", width=10).pack(side=tk.LEFT)
+        entry = tk.Entry(frame, width=15)
+        entry.insert(0, f"User{i+1}")
+        entry.pack(side=tk.LEFT)
+        entries.append(entry)
+
+    # 5번 특별 사용자
+    frame_e = tk.Frame(root, bg="#f0f0f0")
+    frame_e.pack(pady=5)
+    tk.Label(frame_e, text="5번 (13분):", font=label_font, bg="#f0f0f0", width=10).pack(side=tk.LEFT)
+    entry_e = tk.Entry(frame_e, width=15)
+    entry_e.insert(0, "Special")
+    entry_e.pack(side=tk.LEFT)
+
+    def on_submit():
+        names = [e.get() for e in entries]
+        extra_name = entry_e.get()
+        root.destroy()  # 설정창 닫기
+        start_timer(names, extra_name)
+
+    # 시작 버튼
+    btn = tk.Button(root, text="타이머 시작", command=on_submit, width=20, bg="#4CAF50", fg="white", font=("Malgun Gothic", 10, "bold"), pady=10)
+    btn.pack(pady=30)
+
+    # 안내 문구
+    tk.Label(root, text="시작 후 창이 사라지면\n넘패드 1~5를 사용하세요.", font=("Malgun Gothic", 8), fg="#666", bg="#f0f0f0").pack()
+
+    root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    create_ui()
