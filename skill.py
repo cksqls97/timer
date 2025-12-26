@@ -8,8 +8,8 @@ def main():
     print("   클립보드 스킬 타이머 v1.0")
     print("="*30)
     
-    # 1. 이름 입력 받기
     try:
+        # 1. 이름 입력 받기
         names = []
         for i in range(4):
             names.append(input(f"{i+1}번 사용자 이름 (30분): "))
@@ -33,14 +33,14 @@ def main():
             now = datetime.datetime.now()
             output = []
             for i in range(1, 5):
-                name, cool, next_t = users[str(i)]
+                name_val, cool, next_t = users[str(i)]
                 if next_t and now < next_t:
-                    output.append(f"{name} {next_t.strftime('%H:%M')}")
+                    output.append(f"{name_val} {next_t.strftime('%H:%M')}")
                 else:
-                    output.append(name)
+                    output.append(name_val)
             
-            e_name, e_cool, e_next_t = users['5']
-            extra_part = f"{e_name} {e_next_t.strftime('%H:%M')}" if e_next_t and now < e_next_t else e_name
+            e_name_val, e_cool, e_next_t = users['5']
+            extra_part = f"{e_name_val} {e_next_t.strftime('%H:%M')}" if e_next_t and now < e_next_t else e_name_val
             
             final_text = f"{' '.join(output)} / {extra_part}"
             pyperclip.copy(final_text)
@@ -58,3 +58,12 @@ def main():
         keyboard.add_hotkey('num 5', lambda: on_press('5'))
 
         keyboard.wait()
+
+    except KeyboardInterrupt:
+        print("\n프로그램을 종료합니다.")
+    except Exception as e:
+        print(f"\n에러 발생: {e}")
+        input("\n엔터를 눌러 종료하세요...")
+
+if __name__ == "__main__":
+    main()
