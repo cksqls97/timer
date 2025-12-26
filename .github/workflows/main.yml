@@ -4,10 +4,17 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
-      - run: pip install pyinstaller keyboard pyperclip
-      - run: pyinstaller --onefile --admin skill.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Tools
+        run: pip install pyinstaller keyboard pyperclip
+      - name: Build EXE
+        run: pyinstaller --onefile --admin --noconsole skill.py
+      - name: Upload
+        uses: actions/upload-artifact@v4
         with:
           name: SkillTimer
           path: dist/skill.exe
