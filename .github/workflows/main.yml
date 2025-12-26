@@ -14,7 +14,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller keyboard pyperclip
       - name: Build EXE
-        run: pyinstaller --onefile --noconsole --uac-admin skill.py
+        # JSON 파일을 EXE 내부에 포함하는 옵션 추가
+        run: pyinstaller --onefile --noconsole --uac-admin --add-data "timer_config.json;." skill.py
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
