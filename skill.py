@@ -1,8 +1,7 @@
 import keyboard, pyperclip, datetime, tkinter as tk, json, os
-from win10toast import ToastNotifier
+from plyer import notification
 
 CFG = "timer_config.json"
-toaster = ToastNotifier()
 
 def save(n, s):
     with open(CFG, "w", encoding="utf-8") as f:
@@ -17,11 +16,15 @@ def load():
 
 def notify(t, m):
     try:
-        toaster.show_toast(t, m, duration=2, threaded=True)
+        notification.notify(
+            title=t,
+            message=m,
+            app_name='SkillTimer',
+            timeout=3
+        )
     except: pass
 
 def start(names, specs):
-    # 키 설정: 리저(1,2,3,4), 손님(7,8)
     u = {
         '1': [names[0], 30], '2': [names[1], 30], '3': [names[2], 30], '4': [names[3], 30],
         '7': [specs[0], 13], '8': [specs[1] if specs[1].strip() else "", 13]
@@ -40,13 +43,13 @@ def start(names, specs):
         res = f"{' '.join(o)} / {' '.join(s_o)}"
         pyperclip.copy(res)
 
-    up() # 시작 시 클립보드 세팅
+    up()
 
     def p(k):
         now = datetime.datetime.now()
         nm = u[k][0]
         if nt[k] and now < nt[k]:
-            notify("쿨타임 알림", f"{nm}의 쿨타임이 아직 지나지 않았습니다!")
+            notify("쿨타임 알림", f"{nm}: 아직 쿨타임 중입니다!")
             return
         
         nt[k] = now + datetime.timedelta(minutes=u[k][1])
@@ -54,9 +57,9 @@ def start(names, specs):
         tm = nt[k].strftime('%H:%M')
         
         if k in ['1','2','3','4']:
-            msg = f"{nm}가 리저를 사용했습니다.\n다음 리저 시간: {tm}"
+            msg = f"{nm} 리저 사용\n다음 리저: {tm}"
         else:
-            msg = f"{nm}가 사망하였습니다.\n다음 부활 시간: {tm}"
+            msg = f"{nm} 사망 알림\n다음 부활: {tm}"
         notify("타이머 갱신", msg)
 
     for k in u.keys():
@@ -69,28 +72,19 @@ def ui():
     root.title("스킬 타이머 Pro")
     root.geometry("300x480")
     c = load() or {"n": ["", "", "", ""], "s": ["", ""]}
-    
     tk.Label(root, text="이름 설정", font=("Malgun Gothic", 12, "bold")).pack(pady=10)
-    
     ents, s_ents = [], []
     for i in range(4):
         f = tk.Frame(root); f.pack(pady=2)
         tk.Label(f, text=f"리저{i+1}:", width=8).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15); e.insert(0, c["n"][i]); e.pack(side=tk.LEFT)
         ents.append(e)
-        
     for i in range(2):
         f = tk.Frame(root); f.pack(pady=2)
         tk.Label(f, text=f"손님{i+1}:", width=8).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15); e.insert(0, c["s"][i]); e.pack(side=tk.LEFT)
         s_ents.append(e)
-
     def go():
         n, s = [e.get() for e in ents], [e.get() for e in s_ents]
         save(n, s); root.destroy(); start(n, s)
-
-    tk.Button(root, text="저장 및 시작", command=go, width=15, bg="#2196F3", fg="white", font=("Malgun Gothic", 10, "bold")).pack(pady=20)
-    root.mainloop()
-
-if __name__ == "__main__":
-    ui()
+    tk.Button(root, text="저장 및 시작", command=go, width=15, bg="#2196F3", fg="white", font=("Malgun Gothic
