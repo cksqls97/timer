@@ -99,9 +99,4 @@ def create_ui():
         root.destroy()
         start_timer(names, specials)
 
-    tk.Button(root, text="저장 및 타이머 시작", command=on_start, width=20, bg="#2196F3", fg="white", font=("Malgun Gothic", 10, "bold"), pady=10).pack(pady=20)
-    tk.Label(root, text="손님2가 공란이면 리스트에 나타나지 않습니다.", font=("Malgun Gothic", 8), fg="#888", bg="#f5f5f5").pack()
-
-    root.mainloop()
-
-if __name__ ==
+    tk.Button(root, text="저장 및 타이머 시작", command=on_
