@@ -1,6 +1,16 @@
-import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys, winsound
+import keyboard, pyperclip, datetime, tkinter as tk, json, os, threading, sys, winsound, ctypes
 from tkinter import messagebox
 
+# [1] 관리자 권한 자동 실행 로직
+def is_admin():
+    try: return ctypes.windll.shell32.IsUserAnAdmin()
+    except: return False
+
+if not is_admin():
+    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+    sys.exit()
+
+# [2] 리소스 및 설정 관리
 def resource_path(relative_path):
     try: base_path = sys._MEIPASS
     except Exception: base_path = os.path.abspath(".")
@@ -22,10 +32,13 @@ def load():
         except: pass
     return {"n": ["안녕동주야", "브레멘비숍", "외화유출비숍", "돼승끼"], "s": ["손님1", "손님2"]}
 
+# [3] 전역 변수 초기화
 ov_root = None
 ov_elements = {}
 beep_flags = {'f5': False, 'f6': False}
+rezzer_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
 
+# [4] 알림창 시스템
 def custom_notify(title, message, color="#333"):
     def run():
         nt = tk.Toplevel()
@@ -38,6 +51,7 @@ def custom_notify(title, message, color="#333"):
         nt.after(3000, nt.destroy); nt.mainloop()
     threading.Thread(target=run, daemon=True).start()
 
+# [5] 메인 타이머 로직 및 오버레이
 def start_logic(names, specs):
     try:
         u = {
@@ -51,13 +65,17 @@ def start_logic(names, specs):
             ov_root.destroy()
             ui()
 
+        def toggle_rezzer(k):
+            rezzer_alive[k] = not rezzer_alive[k]
+            up()
+
         def create_overlay():
             global ov_root, ov_elements
             ov_root = tk.Tk()
             ov_root.attributes("-topmost", True); ov_root.overrideredirect(True)
             ov_root.configure(bg="#121212")
             
-            w, h = 360, 400 # 마지노선 표시를 위해 높이 약간 추가
+            w, h = 360, 420 
             sx, sy = ov_root.winfo_screenwidth() - w - 20, ov_root.winfo_screenheight() - h - 180
             ov_root.geometry(f"{w}x{h}+{sx}+{sy}")
             
@@ -74,35 +92,38 @@ def start_logic(names, specs):
 
             main_cont = tk.Frame(ov_root, bg="#121212", padx=15, pady=10); main_cont.pack(fill="both", expand=True)
 
-            def create_card(parent, title_color, is_guest=False):
+            def create_card(parent, title_color, k, is_guest=False):
                 card = tk.Frame(parent, bg="#262626", bd=2, relief="ridge", padx=10, pady=8)
-                name_lbl = tk.Label(card, text="-", fg="white", bg="#262626", font=("Malgun Gothic", 10, "bold"))
-                time_lbl = tk.Label(card, text="READY", fg=title_color, bg="#262626", font=("Malgun Gothic", 9))
-                name_lbl.pack(); time_lbl.pack()
-                
-                margin_lbl = None
+                nl = tk.Label(card, text="-", fg="white", bg="#262626", font=("Malgun Gothic", 10, "bold"))
+                tl = tk.Label(card, text="READY", fg=title_color, bg="#262626", font=("Malgun Gothic", 9))
+                nl.pack(); tl.pack()
+                ml = None
                 if is_guest:
-                    margin_lbl = tk.Label(card, text="", fg="#ffab00", bg="#262626", font=("Malgun Gothic", 8, "italic"))
-                    margin_lbl.pack()
-                
-                return card, name_lbl, time_lbl, margin_lbl
+                    ml = tk.Label(card, text="", fg="#ffab00", bg="#262626", font=("Malgun Gothic", 8, "italic"))
+                    ml.pack()
+                else:
+                    card.bind("<Button-3>", lambda e, x=k: toggle_rezzer(x))
+                    nl.bind("<Button-3>", lambda e, x=k: toggle_rezzer(x))
+                    tl.bind("<Button-3>", lambda e, x=k: toggle_rezzer(x))
+                return card, nl, tl, ml
 
-            # 리저 섹션
-            tk.Label(main_cont, text="RESURRECTION (F1-F4)", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0,8))
+            # REZ (F1-F4) 카드 배치
+            tk.Label(main_cont, text="REZ MEMBERS (F1-F4)", fg="#BB86FC", bg="#121212", font=("Malgun Gothic", 9, "bold")).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0,8))
             for i, k in enumerate(['f1', 'f2', 'f3', 'f4']):
-                card, nl, tl, _ = create_card(main_cont, "#BB86FC")
+                card, nl, tl, _ = create_card(main_cont, "#BB86FC", k)
                 card.grid(row=(i//2)+1, column=i%2, padx=5, pady=5, sticky="nsew")
-                ov_elements[k] = (nl, tl)
+                ov_elements[k] = (card, nl, tl)
 
-            # 손님 섹션
+            # GUEST (F5-F6) 카드 배치
             tk.Label(main_cont, text="GUEST (F5-F6)", fg="#03DAC6", bg="#121212", font=("Malgun Gothic", 9, "bold")).grid(row=3, column=0, columnspan=2, sticky="w", pady=(12,8))
             for i, k in enumerate(['f5', 'f6']):
-                card, nl, tl, ml = create_card(main_cont, "#03DAC6", is_guest=True)
+                card, nl, tl, ml = create_card(main_cont, "#03DAC6", k, is_guest=True)
                 card.grid(row=4, column=i, padx=5, pady=5, sticky="nsew")
                 ov_elements[k] = (nl, tl, ml)
 
             main_cont.grid_columnconfigure(0, weight=1); main_cont.grid_columnconfigure(1, weight=1)
 
+            # 핫키 등록
             for k in u.keys():
                 keyboard.add_hotkey(k, lambda x=k: p(x) if u[x][0].strip() else None, suppress=False)
             
@@ -110,86 +131,87 @@ def start_logic(names, specs):
                 if ov_root and ov_root.winfo_exists():
                     up()
                     ov_root.after(1000, auto_update)
-            
-            auto_update()
-            ov_root.mainloop()
+            auto_update(); ov_root.mainloop()
 
         def up():
             now = datetime.datetime.now()
             cur_time_clip = now.strftime('%H%M')
             o_clip, s_clip = [], []
-            
-            # 리저들의 남은 쿨타임 중 가장 빠른 시간 찾기
             rez_cools = []
-            for rk in ['f1', 'f2', 'f3', 'f4']:
-                if nt_times[rk] and nt_times[rk] > now:
-                    rez_cools.append(nt_times[rk])
-                elif u[rk][0].strip(): # 이름은 있는데 쿨타임이 없으면 즉시 가능
-                    rez_cools.append(now)
             
-            min_rez_ready = min(rez_cools) if rez_cools else now
+            # REZ 상태 업데이트
+            for rk in ['f1', 'f2', 'f3', 'f4']:
+                card, nl, tl = ov_elements[rk]
+                nl.config(text=u[rk][0])
+                if not rezzer_alive[rk]:
+                    card.config(highlightbackground="red", highlightthickness=2)
+                    tl.config(text="PLAYER DEAD", fg="red")
+                else:
+                    card.config(highlightthickness=0)
+                    if nt_times[rk] and nt_times[rk] > now:
+                        tl.config(text=nt_times[rk].strftime('%H:%M'), fg="#ff5252")
+                        rez_cools.append(nt_times[rk])
+                        o_clip.append(f"{u[rk][0]} {nt_times[rk].strftime('%M')}")
+                    else:
+                        tl.config(text="READY", fg="#4caf50")
+                        if u[rk][0].strip():
+                            rez_cools.append(now)
+                            o_clip.append(u[rk][0])
 
-            guest_times = []
-            for k in u.keys():
+            # 생존한 REZ 중 가장 빨리 준비되는 시간
+            min_rez_ready = min(rez_cools) if rez_cools else None
+
+            # GUEST 상태 업데이트
+            for k in ['f5', 'f6']:
                 nm = u[k][0].strip()
                 if not nm: continue
-                
-                if k in ['f5', 'f6']:
-                    nl, tl, ml = ov_elements[k]
-                    if nt_times[k] and now < nt_times[k]:
-                        tl.config(text=nt_times[k].strftime('%H:%M'), fg="#ff5252")
-                        s_clip.append(f"{nm} {nt_times[k].strftime('%M')}")
-                        guest_times.append((k, nt_times[k]))
-                        
-                        # 마지노선 로직: (손님 부활제한 시간) - (가장 빠른 리저가 돌아오는 시간)
-                        # 손님 제한시간은 u[k][1]분(13분)으로 설정되어 있음
-                        time_to_death = (nt_times[k] - now).total_seconds()
-                        time_to_rez = (min_rez_ready - now).total_seconds()
-                        
-                        margin = time_to_death - time_to_rez
-                        if margin < 0:
-                            ml.config(text="⚠️ 부활 불가", fg="#ff1744")
-                        else:
-                            mins = int(margin // 60)
-                            ml.config(text=f"여유: {mins}분", fg="#ffab00")
+                nl, tl, ml = ov_elements[k]
+                nl.config(text=nm)
+                if nt_times[k] and now < nt_times[k]:
+                    tl.config(text=nt_times[k].strftime('%H:%M'), fg="#ff5252")
+                    s_clip.append(f"{nm} {nt_times[k].strftime('%M')}")
+                    
+                    if min_rez_ready is None:
+                        ml.config(text="⚠️ REZ 부재", fg="#ff1744")
                     else:
-                        tl.config(text="READY", fg="#4caf50")
-                        ml.config(text="")
-                        s_clip.append(nm); beep_flags[k] = False
+                        margin = (nt_times[k] - now).total_seconds() - (min_rez_ready - now).total_seconds()
+                        if margin < 0: ml.config(text="⚠️ 부활 불가", fg="#ff1744")
+                        else: ml.config(text=f"여유: {int(margin // 60)}분", fg="#ffab00")
+                    
+                    # 1분 전 알림음
+                    diff = (nt_times[k] - now).total_seconds()
+                    if 58 <= diff <= 61 and not beep_flags[k]:
+                        winsound.Beep(1000, 500); beep_flags[k] = True
                 else:
-                    nl, tl = ov_elements[k]
-                    if nt_times[k] and now < nt_times[k]:
-                        tl.config(text=nt_times[k].strftime('%H:%M'), fg="#ff5252")
-                        o_clip.append(f"{nm} {nt_times[k].strftime('%M')}")
-                    else:
-                        tl.config(text="READY", fg="#4caf50")
-                        o_clip.append(nm)
-
-            # 알림음 로직 (생략 없음)
-            if guest_times:
-                guest_times.sort(key=lambda x: x[1])
-                first_k, first_time = guest_times[0]
-                diff = (first_time - now).total_seconds()
-                if 58 <= diff <= 61 and not beep_flags[first_k]:
-                    winsound.Beep(1000, 500); beep_flags[first_k] = True
+                    tl.config(text="READY", fg="#4caf50"); ml.config(text="")
+                    s_clip.append(nm); beep_flags[k] = False
 
             pyperclip.copy(f"현재시간 {cur_time_clip} / {' '.join(o_clip)} / {' '.join(s_clip)}")
             if ov_root: ov_elements['now'].config(text=f"🕒 {now.strftime('%H:%M')}")
 
         def p(k):
             now = datetime.datetime.now()
-            if k in ['f1', 'f2', 'f3', 'f4'] and nt_times[k] and now < nt_times[k]:
-                custom_notify("Cooldown", f"{u[k][0]}: On cooldown!", "#d32f2f")
-                return
-            nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
-            if k in ['f5', 'f6']: beep_flags[k] = False
+            if k in ['f1', 'f2', 'f3', 'f4']:
+                if nt_times[k] and now < nt_times[k]:
+                    custom_notify("Cooldown", f"{u[k][0]}: On cooldown!", "#d32f2f")
+                    return
+                if not rezzer_alive[k]:
+                    custom_notify("Error", f"{u[k][0]} is Dead!", "#d32f2f")
+                    return
+                
+                nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
+                custom_notify("REZ Used", f"{u[k][0]} (30m)", "#3d5afe")
+            else:
+                nt_times[k] = now + datetime.timedelta(minutes=u[k][1])
+                beep_flags[k] = False
+                custom_notify("GUEST Death", f"{u[k][0]} (13m)", "#2e7d32")
             up()
-            custom_notify("Timer Update", f"{u[k][0]} ({nt_times[k].strftime('%H:%M')})", "#2e7d32")
 
         create_overlay()
     except Exception as e:
         messagebox.showerror("Error", str(e)); os._exit(1)
 
+# [6] 초기 설정 UI
 def ui():
     root = tk.Tk(); root.title("Skill Timer"); root.geometry("360x640"); root.configure(bg="#f8f9fa")
     root.eval('tk::PlaceWindow . center')
@@ -198,15 +220,15 @@ def ui():
     container = tk.Frame(root, bg="#f8f9fa"); container.pack(padx=30, fill="x")
     def create_row(parent, txt, d_val):
         row = tk.Frame(parent, bg="#f8f9fa"); row.pack(fill="x", pady=6)
-        tk.Label(row, text=txt, width=10, anchor="w", bg="#f8f9fa", font=("Malgun Gothic", 10)).pack(side=tk.LEFT)
+        tk.Label(row, text=txt, width=12, anchor="w", bg="#f8f9fa", font=("Malgun Gothic", 10)).pack(side=tk.LEFT)
         e = tk.Entry(row, bd=1, relief="solid", font=("Malgun Gothic", 10)); e.insert(0, d_val); e.pack(side=tk.LEFT, expand=True, fill="x", padx=(10, 0))
         return e
     ents = []
-    tk.Label(container, text="[ Resurrection Members ]", bg="#f8f9fa", fg="#6200EE", font=("Malgun Gothic", 9, "bold")).pack(anchor="w", pady=(10, 5))
-    for i in range(4): ents.append(create_row(container, f"Member {i+1}", c["n"][i]))
+    tk.Label(container, text="[ REZ MEMBERS ]", bg="#f8f9fa", fg="#6200EE", font=("Malgun Gothic", 9, "bold")).pack(anchor="w", pady=(10, 5))
+    for i in range(4): ents.append(create_row(container, f"REZ {i+1}", c["n"][i]))
     tk.Frame(container, height=1, bg="#dee2e6").pack(fill="x", pady=20)
     s_ents = []
-    tk.Label(container, text="[ Guest Members ]", bg="#f8f9fa", fg="#03DAC6", font=("Malgun Gothic", 9, "bold")).pack(anchor="w", pady=(0, 5))
+    tk.Label(container, text="[ GUEST MEMBERS ]", bg="#f8f9fa", fg="#03DAC6", font=("Malgun Gothic", 9, "bold")).pack(anchor="w", pady=(0, 5))
     for i in range(2): s_ents.append(create_row(container, f"Guest {i+1}", c["s"][i]))
     def go():
         n, s = [e.get() for e in ents], [e.get() for e in s_ents]
