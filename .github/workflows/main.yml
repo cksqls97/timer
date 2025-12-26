@@ -1,0 +1,13 @@
+name: Build
+on: [push]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: pip install pyinstaller keyboard pyperclip
+      - run: pyinstaller --onefile --admin skill.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SkillTimer
+          path: dist/skill.exe
