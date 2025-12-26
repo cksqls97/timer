@@ -16,12 +16,7 @@ def load():
 
 def notify(t, m):
     try:
-        notification.notify(
-            title=t,
-            message=m,
-            app_name='SkillTimer',
-            timeout=3
-        )
+        notification.notify(title=t, message=m, app_name='SkillTimer', timeout=3)
     except: pass
 
 def start(names, specs):
@@ -49,42 +44,41 @@ def start(names, specs):
         now = datetime.datetime.now()
         nm = u[k][0]
         if nt[k] and now < nt[k]:
-            notify("쿨타임 알림", f"{nm}: 아직 쿨타임 중입니다!")
+            notify("Cooldown", f"{nm}: Still on cooldown!")
             return
-        
         nt[k] = now + datetime.timedelta(minutes=u[k][1])
         up()
         tm = nt[k].strftime('%H:%M')
-        
-        if k in ['1','2','3','4']:
-            msg = f"{nm} 리저 사용\n다음 리저: {tm}"
-        else:
-            msg = f"{nm} 사망 알림\n다음 부활: {tm}"
-        notify("타이머 갱신", msg)
+        if k in ['1','2','3','4']: msg = f"{nm} 사용됨\n다음: {tm}"
+        else: msg = f"{nm} 사망\n부활: {tm}"
+        notify("Timer", msg)
 
     for k in u.keys():
         keyboard.add_hotkey(f'num {k}', lambda x=k: p(x) if u[x][0].strip() else None)
-    
     keyboard.wait()
 
 def ui():
     root = tk.Tk()
-    root.title("스킬 타이머 Pro")
-    root.geometry("300x480")
+    root.title("Timer Pro")
+    root.geometry("300x450")
     c = load() or {"n": ["", "", "", ""], "s": ["", ""]}
-    tk.Label(root, text="이름 설정", font=("Malgun Gothic", 12, "bold")).pack(pady=10)
+    tk.Label(root, text="Names", font=("Arial", 12, "bold")).pack(pady=10)
     ents, s_ents = [], []
     for i in range(4):
         f = tk.Frame(root); f.pack(pady=2)
-        tk.Label(f, text=f"리저{i+1}:", width=8).pack(side=tk.LEFT)
+        tk.Label(f, text=f"Rez {i+1}:", width=8).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15); e.insert(0, c["n"][i]); e.pack(side=tk.LEFT)
         ents.append(e)
     for i in range(2):
         f = tk.Frame(root); f.pack(pady=2)
-        tk.Label(f, text=f"손님{i+1}:", width=8).pack(side=tk.LEFT)
+        tk.Label(f, text=f"Guest {i+1}:", width=8).pack(side=tk.LEFT)
         e = tk.Entry(f, width=15); e.insert(0, c["s"][i]); e.pack(side=tk.LEFT)
         s_ents.append(e)
     def go():
         n, s = [e.get() for e in ents], [e.get() for e in s_ents]
         save(n, s); root.destroy(); start(n, s)
-    tk.Button(root, text="저장 및 시작", command=go, width=15, bg="#2196F3", fg="white", font=("Malgun Gothic
+    tk.Button(root, text="Start", command=go, width=15, bg="blue", fg="white").pack(pady=20)
+    root.mainloop()
+
+if __name__ == "__main__":
+    ui()
