@@ -1,46 +1,60 @@
-import keyboard, pyperclip, datetime, sys
+import keyboard
+import pyperclip
+import datetime
+import sys
 
-# 이름을 입력받는 대신 기본값을 설정합니다. (나중에 실행파일에서 바꾸면 됩니다)
 def main():
-    print("=== 클립보드 타이머 실행 중 ===")
-    print("Numpad 1~4: 사용자 30분 쿨타임")
-    print("Numpad 5: 특별 사용자 13분 쿨타임")
+    print("="*30)
+    print("   클립보드 스킬 타이머 v1.0")
+    print("="*30)
     
-    # 기본값 설정 (필요시 이 부분을 수정해서 다시 빌드하세요)
-    names = ["AAA", "BBB", "CCC", "DDD"]
-    e_name = "EEE"
-    
-    u = {str(i+1): [names[i], 30, None] for i in range(4)}
-    u['5'] = [e_name, 13, None]
-
-    def up():
-        n = datetime.datetime.now()
-        o = []
-        for i in range(1, 5):
-            name, cool, next_t = u[str(i)]
-            if next_t and n < next_t:
-                o.append(f"{name} {next_t.strftime('%H:%M')}")
-            else:
-                o.append(name)
+    # 1. 이름 입력 받기
+    try:
+        names = []
+        for i in range(4):
+            names.append(input(f"{i+1}번 사용자 이름 (30분): "))
+        extra_name = input("5번 특별 사용자 이름 (13분): ")
         
-        e_data = u['5']
-        ex = f"{e_data[0]} {e_data[2].strftime('%H:%M')}" if e_data[2] and n < e_data[2] else e_data[0]
-        res = f"{' '.join(o)} / {ex}"
-        pyperclip.copy(res)
-        print(f"\r[복사됨]: {res}", end="", flush=True)
+        users = {
+            '1': [names[0], 30, None],
+            '2': [names[1], 30, None],
+            '3': [names[2], 30, None],
+            '4': [names[3], 30, None],
+            '5': [extra_name, 13, None]
+        }
+        
+        print("\n" + "-"*30)
+        print("설정 완료! 이제 창을 내려놓으셔도 됩니다.")
+        print("NUMPAD 1~5를 누르면 클립보드에 복사됩니다.")
+        print("종료: Ctrl + C")
+        print("-"*30)
 
-    def p(k):
-        u[k][2] = datetime.datetime.now() + datetime.timedelta(minutes=u[k][1])
-        up()
+        def update_clipboard():
+            now = datetime.datetime.now()
+            output = []
+            for i in range(1, 5):
+                name, cool, next_t = users[str(i)]
+                if next_t and now < next_t:
+                    output.append(f"{name} {next_t.strftime('%H:%M')}")
+                else:
+                    output.append(name)
+            
+            e_name, e_cool, e_next_t = users['5']
+            extra_part = f"{e_name} {e_next_t.strftime('%H:%M')}" if e_next_t and now < e_next_t else e_name
+            
+            final_text = f"{' '.join(output)} / {extra_part}"
+            pyperclip.copy(final_text)
+            print(f"\r[복사됨]: {final_text}", end="", flush=True)
 
-    # 키 등록
-    keyboard.add_hotkey('num 1', lambda: p('1'))
-    keyboard.add_hotkey('num 2', lambda: p('2'))
-    keyboard.add_hotkey('num 3', lambda: p('3'))
-    keyboard.add_hotkey('num 4', lambda: p('4'))
-    keyboard.add_hotkey('num 5', lambda: p('5'))
+        def on_press(key):
+            users[key][2] = datetime.datetime.now() + datetime.timedelta(minutes=users[key][1])
+            update_clipboard()
 
-    keyboard.wait()
+        # 키 등록
+        keyboard.add_hotkey('num 1', lambda: on_press('1'))
+        keyboard.add_hotkey('num 2', lambda: on_press('2'))
+        keyboard.add_hotkey('num 3', lambda: on_press('3'))
+        keyboard.add_hotkey('num 4', lambda: on_press('4'))
+        keyboard.add_hotkey('num 5', lambda: on_press('5'))
 
-if __name__ == "__main__":
-    main()
+        keyboard.wait()
