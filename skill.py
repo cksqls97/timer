@@ -14,7 +14,7 @@ def load():
     return None
 
 def notify(t, m):
-    # PowerShell을 이용한 시스템 알림 (한글 깨짐 방지 처리)
+    # PowerShell을 이용한 시스템 알림
     toast_script = f"""
     $ErrorActionPreference = 'SilentlyContinue'
     [reflection.assembly]::loadwithpartialname('System.Windows.Forms')
@@ -26,8 +26,8 @@ def notify(t, m):
     $bal.Visible = $true
     $bal.ShowBalloonTip(3000)
     """
-    encoded_script = subprocess.list2cmdline(["PowerShell", "-Command", toast_script])
-    subprocess.Popen(encoded_script, shell=True)
+    cmd = ["PowerShell", "-Command", toast_script]
+    subprocess.Popen(cmd, shell=True)
 
 def start(names, specs):
     u = {
@@ -41,10 +41,18 @@ def start(names, specs):
         o, s_o = [], []
         for i in '1234':
             nm = u[i][0]
-            if nm.strip(): o.append(f"{nm} {nt[i].strftime('%H:%M')}" if nt[i] and now < nt[i] else nm)
+            if nm.strip():
+                if nt[i] and now < nt[i]:
+                    o.append(f"{nm} {nt[i].strftime('%H:%M')}")
+                else:
+                    o.append(nm)
         for i in '78':
             nm = u[i][0]
-            if nm.strip(): s_o.append(f"{nm} {nt[i].strftime('%H:%M')}" if nt[i] and now < nt[i] else nm)
+            if nm.strip():
+                if nt[i] and now < nt[i]:
+                    s_o.append(f"{nm} {nt[i].strftime('%H:%M')}")
+                else:
+                    s_o.append(nm)
         res = f"{' '.join(o)} / {' '.join(s_o)}"
         pyperclip.copy(res)
 
@@ -56,7 +64,13 @@ def start(names, specs):
         if nt[k] and now < nt[k]:
             notify("쿨타임 알림", f"{nm}: 아직 쿨타임 중입니다!")
             return
+        
         nt[k] = now + datetime.timedelta(minutes=u[k][1])
         up()
         tm = nt[k].strftime('%H:%M')
-        msg = f"{nm} 사용됨. 다음: {tm}" if k in '1234'
+        
+        # 문법 오류 방지를 위해 if-else 문을 명확히 분리
+        if k in '1234':
+            msg = f"{nm} 리저 사용됨. 다음: {tm}"
+        else:
+            msg
