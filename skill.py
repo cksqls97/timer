@@ -35,25 +35,24 @@ guest_beep_flag = False
 def show_manual():
     manual_text = (
         "[ Resurrection_Timer 사용 설명서 ]\n\n"
-        "1. 단축키 안내\n"
-        " - F1~F4: 각 비숍 리저렉션 사용 기록\n"
-        " - F5: 손님 사망 기록 (13분 타이머)\n\n"
+        "1. 조작 안내\n"
+        " - 마우스 좌클릭: 타이머 시작 (30분/13분)\n"
+        " - 마우스 우클릭: 비숍 사망/생존(D.O) 토글\n\n"
         "2. 주요 기능\n"
-        " - 이름 우클릭: 비숍 사망/생존 상태 토글\n"
-        " - 노란색 경고: 사용 시 손님 연속 사망 대응 불가\n"
-        " - 빨간색 경고: 내가 죽으면 로테이션 파괴 위험\n\n"
+        " - 노란색: 사용 시 손님 연속 사망 대응 불가\n"
+        " - 빨간색: 사망 시 로테이션 붕괴 위험\n\n"
         "3. 자동 클립보드\n"
-        " - 입력 시마다 현재 상태가 채팅용으로 복사됩니다."
+        " - 클릭 시 현재 상태가 즉시 복사됩니다."
     )
     messagebox.showinfo("Resurrection_Timer Manual", manual_text)
 
-# [3] 메인 타이머 및 오버레이 로직
+# [3] 메인 로직
 def start_logic(names):
     u = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
     nt_times = {k: None for k in u.keys()}
 
     def go_to_setup():
-        keyboard.unhook_all()
+        # 단축키 해제 로직 제거 (클릭 방식이므로)
         if ov_root: ov_root.destroy()
         show_setup_ui()
 
@@ -64,8 +63,7 @@ def start_logic(names):
         for rk in ['f1','f2','f3','f4']:
             if nt_times[rk] and nt_times[rk] > now:
                 o_p.append(f"{u[rk]} {nt_times[rk].strftime('%M')}")
-            else:
-                o_p.append(u[rk])
+            else: o_p.append(u[rk])
         g_str = f"손님 {nt_times['f5'].strftime('%M')}" if nt_times['f5'] and nt_times['f5'] > now else "손님"
         pyperclip.copy(f"현재 {cur_time} | {' '.join(o_p)} | {g_str}")
 
@@ -73,13 +71,11 @@ def start_logic(names):
         now = datetime.datetime.now()
         alive_times = sorted([nt_times[rk] if nt_times[rk] and nt_times[rk] > now else now 
                              for rk in ['f1','f2','f3','f4'] if resurrection_alive[rk]])
-        
         guest_deadline = nt_times['f5'] if nt_times['f5'] else now
 
         for rk in ['f1','f2','f3','f4']:
             c, nl, tl, msg = ov_elements[rk]
             nl.config(text=u[rk], fg="white")
-            
             if not resurrection_alive[rk]:
                 c.config(highlightbackground="#441111", bg="#150A0A")
                 for w in [nl, tl, msg]: w.config(bg="#150A0A")
@@ -92,61 +88,60 @@ def start_logic(names):
             else:
                 tl.config(text="READY", fg="#4CAF50")
                 warn_texts = []
-                
-                # 1. 사용 시 시뮬레이션
                 tmp_u = sorted(alive_times)
                 try:
-                    idx = tmp_u.index(now)
-                    tmp_u[idx] = now + datetime.timedelta(minutes=30)
+                    idx = tmp_u.index(now); tmp_u[idx] = now + datetime.timedelta(minutes=30)
                     tmp_u = sorted(tmp_u)
                     if len(tmp_u) >= 2: tmp_u[0] = tmp_u[0] + datetime.timedelta(minutes=30)
                     if min(tmp_u) > guest_deadline: warn_texts.append("사용 시 불가")
                 except: pass
-
-                # 2. 사망 시 시뮬레이션
                 tmp_d = sorted(alive_times)
                 try:
                     tmp_d.remove(now)
                     if tmp_d:
                         tmp_d[0] = tmp_d[0] + datetime.timedelta(minutes=30)
-                        next_res_d = min(tmp_d)
-                        if next_res_d > guest_deadline: warn_texts.append("사망 시 불가")
+                        if min(tmp_d) > guest_deadline: warn_texts.append("사망 시 불가")
                     else: warn_texts.append("사망 시 불가")
                 except: pass
-
                 if "사망 시 불가" in warn_texts:
-                    msg.config(text="\n".join(warn_texts), fg="#FF5252")
-                    c.config(highlightbackground="#FF1744", highlightthickness=2)
+                    msg.config(text="\n".join(warn_texts), fg="#FF5252"); c.config(highlightbackground="#FF1744", highlightthickness=2)
                 elif "사용 시 불가" in warn_texts:
-                    msg.config(text="\n".join(warn_texts), fg="#FFD600")
-                    c.config(highlightbackground="#FFD600", highlightthickness=2)
-                else:
-                    msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+                    msg.config(text="\n".join(warn_texts), fg="#FFD600"); c.config(highlightbackground="#FFD600", highlightthickness=2)
+                else: msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
 
         c, nl, tl, msg = ov_elements['f5']
         if nt_times['f5'] and now < nt_times['f5']:
             tl.config(text=nt_times['f5'].strftime('%H:%M'), fg="#FF5252")
-            diff = (nt_times['f5'] - now).total_seconds()
             min_r = min(alive_times) if alive_times else now + datetime.timedelta(minutes=99)
             m_sec = (nt_times['f5'] - min_r).total_seconds()
             msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
-            
             global guest_beep_flag
-            if 58 <= diff <= 61 and not guest_beep_flag:
+            if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
                 winsound.Beep(1000, 500); guest_beep_flag = True
-        else:
-            tl.config(text="READY", fg="#03DAC6"); msg.config(text=""); guest_beep_flag = False
-            
+        else: tl.config(text="READY", fg="#03DAC6"); msg.config(text=""); guest_beep_flag = False
         ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
+
+    # [핵심] 클릭 이벤트 처리 함수
+    def on_click_event(k):
+        now = datetime.datetime.now()
+        if k in ['f1','f2','f3','f4']:
+            # 현재 쿨타임 중이 아닐 때만 갱신 (리저 사용)
+            if not nt_times[k] or now >= nt_times[k]:
+                nt_times[k] = now + datetime.timedelta(minutes=30)
+        elif k == 'f5':
+            # 손님 사망 타이머 갱신
+            nt_times['f5'] = now + datetime.timedelta(minutes=13)
+            global guest_beep_flag
+            guest_beep_flag = False
+        update_display()
+        update_clipboard()
 
     def create_overlay():
         global ov_root, ov_elements
-        ov_root = tk.Tk()
-        ov_root.title("Resurrection_Timer")
+        ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
         ov_root.attributes("-topmost", True, "-alpha", 0.95); ov_root.overrideredirect(True)
         ov_root.configure(bg="#0F0F0F")
-        w, h = 300, 420 
-        ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
+        w, h = 300, 420; ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
         def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
@@ -167,8 +162,13 @@ def start_logic(names):
             tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 15, "bold"))
             msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2)
             nl.pack(pady=(5,0)); tl.pack(); msg.pack(pady=(0,5))
-            if not is_guest:
-                for w_ in [c, nl, tl, msg]: w_.bind("<Button-3>", lambda e, x=k: toggle_res(x))
+            
+            # 모든 위젯에 클릭 바인딩 (좌클릭: 실행, 우클릭: 상태 토글)
+            widgets = [c, nl, tl, msg]
+            for w_ in widgets:
+                w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
+                if not is_guest:
+                    w_.bind("<Button-3>", lambda e, x=k: (resurrection_alive.update({x: not resurrection_alive[x]}), update_display()))
             return c, nl, tl, msg
 
         for i, k in enumerate(['f1','f2','f3','f4']):
@@ -181,31 +181,14 @@ def start_logic(names):
         ov_elements['f5'] = (c, nl, tl, m)
 
         main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
-        for k in ['f1','f2','f3','f4','f5']:
-            keyboard.add_hotkey(k, lambda x=k: on_key(x), suppress=False)
         
         def auto_tick():
             if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
         auto_tick(); ov_root.mainloop()
 
-    def toggle_res(k):
-        resurrection_alive[k] = not resurrection_alive[k]
-        update_display()
-
-    def on_key(k):
-        now = datetime.datetime.now()
-        if k in ['f1','f2','f3','f4']:
-            if resurrection_alive[k] and (not nt_times[k] or now >= nt_times[k]):
-                nt_times[k] = now + datetime.timedelta(minutes=30)
-        elif k == 'f5':
-            nt_times['f5'] = now + datetime.timedelta(minutes=13)
-            global guest_beep_flag
-            guest_beep_flag = False
-        update_display(); update_clipboard()
-
     create_overlay()
 
-# [4] 설정 UI (보완된 다크 모드)
+# [4] 설정 UI
 def show_setup_ui():
     root = tk.Tk(); root.title("Resurrection_Timer Setup")
     root.geometry("420x580"); root.configure(bg="#121212")
@@ -214,7 +197,7 @@ def show_setup_ui():
 
     header = tk.Frame(root, bg="#1A1A1A", pady=25); header.pack(fill="x")
     tk.Label(header, text="Resurrection_Timer", font=("Segoe UI", 20, "bold"), bg="#1A1A1A", fg="#BB86FC").pack()
-    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, cursor="hand2", command=show_manual).pack(pady=5)
+    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, command=show_manual).pack(pady=5)
 
     f = tk.Frame(root, bg="#121212", pady=30); f.pack(padx=50, fill="x")
     ents = []
@@ -229,8 +212,7 @@ def show_setup_ui():
         nv = [e.get() for e in ents]
         save_config(nv); root.destroy(); start_logic(nv)
 
-    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 13, "bold"), pady=15, bd=0, cursor="hand2").pack(pady=30, padx=50, fill="x")
-    tk.Label(root, text="Designed for 4-Bishop Rotation", font=("Segoe UI", 8), bg="#121212", fg="#444").pack(side=tk.BOTTOM, pady=10)
+    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 13, "bold"), pady=15, bd=0).pack(pady=30, padx=50, fill="x")
     root.mainloop()
 
 if __name__ == "__main__":
