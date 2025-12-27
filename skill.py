@@ -31,7 +31,9 @@ ov_root = None
 ov_elements = {}
 resurrection_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
 guest_beep_flag = False
+# [사용 내역 저장용 리스트 - 'd'는 사망/부활 상태 기록용]
 usage_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': [], 'f5': []}
+status_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': []}
 
 def show_manual():
     manual_text = (
@@ -44,7 +46,7 @@ def show_manual():
         " - 노란색: 사용 시 손님 연속 사망 대응 불가\n"
         " - 빨간색: 사망 시 로테이션 붕괴 위험\n\n"
         "3. 로그 저장\n"
-        " - 종료 시 상세 타임라인 리포트 생성"
+        " - 종료 시 상세 타임라인 리포트 생성 (사망/부활 포함)"
     )
     messagebox.showinfo("Resurrection_Timer Manual", manual_text)
 
@@ -58,34 +60,52 @@ def create_exit_log(names):
             f"=== Resurrection Timer 미션 상세 리포트 ===",
             f"미션 종료 시각: {now.strftime('%Y-%m-%d %H:%M:%S')}",
             f"-------------------------------------------",
-            f"1. 대상별 사용 내역 (목록)",
+            f"1. 대상별 상세 기록",
             f"-------------------------------------------"
         ]
         
         for k in ['f1', 'f2', 'f3', 'f4', 'f5']:
-            log_content.append(f"[{u_dict[k]}] 기록:")
-            if usage_logs[k]:
-                for idx, t in enumerate(usage_logs[k], 1):
-                    log_content.append(f"  {idx}. {t.strftime('%H:%M:%S')}")
-            else: log_content.append("  - 기록 없음")
+            log_content.append(f"[{u_dict[k]}]")
+            
+            # 해당 대상의 모든 기록(사용 및 상태 변화) 수집
+            personal_events = []
+            for t in usage_logs[k]:
+                action = "사망 기록" if k == 'f5' else "리저 사용"
+                personal_events.append((t, action))
+            
+            if k != 'f5': # 비숍인 경우 상태 변화 기록 추가
+                for t, s in status_logs[k]:
+                    personal_events.append((t, s))
+            
+            personal_events.sort(key=lambda x: x[0])
+            
+            if personal_events:
+                for idx, (t, act) in enumerate(personal_events, 1):
+                    log_content.append(f"  {idx}. [{t.strftime('%H:%M:%S')}] {act}")
+            else:
+                log_content.append("  - 기록 없음")
             log_content.append("")
             
         log_content.append(f"-------------------------------------------")
-        log_content.append(f"2. 미션 타임라인 (시간순 정렬)")
+        log_content.append(f"2. 미션 통합 타임라인 (시간순)")
         log_content.append(f"-------------------------------------------")
         
         all_events = []
         for k, times in usage_logs.items():
-            for t in times: all_events.append((t, u_dict[k]))
+            for t in times:
+                action = "사망 기록" if k == 'f5' else "리저 사용"
+                all_events.append((t, u_dict[k], action))
+        for k, states in status_logs.items():
+            for t, s in states:
+                all_events.append((t, u_dict[k], s))
         
         all_events.sort(key=lambda x: x[0])
         
         if all_events:
-            for idx, event in enumerate(all_events, 1):
-                t, name = event
-                action = "사망 기록" if name == "손님" else "리저 사용"
-                log_content.append(f"[{t.strftime('%H:%M:%S')}] {name} - {action}")
-        else: log_content.append("- 기록된 내역이 없습니다.")
+            for t, name, act in all_events:
+                log_content.append(f"[{t.strftime('%H:%M:%S')}] {name: <6} | {act}")
+        else:
+            log_content.append("- 기록된 내역이 없습니다.")
             
         log_content.append(f"-------------------------------------------")
         log_content.append(f"리포트 생성 완료.")
@@ -94,7 +114,6 @@ def create_exit_log(names):
             f.write("\n".join(log_content))
     except: pass
 
-# [3] 메인 로직
 def start_logic(names):
     u = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
     nt_times = {k: None for k in u.keys()}
@@ -186,6 +205,13 @@ def start_logic(names):
         update_display()
         update_clipboard()
 
+    def toggle_status(k):
+        now = datetime.datetime.now()
+        resurrection_alive[k] = not resurrection_alive[k]
+        status_text = "생존(부활) 합류" if resurrection_alive[k] else "사망(D.O) 발생"
+        status_logs[k].append((now, status_text))
+        update_display()
+
     def create_overlay():
         global ov_root, ov_elements
         ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
@@ -193,12 +219,10 @@ def start_logic(names):
         ov_root.configure(bg="#0F0F0F")
         w, h = 300, 420; ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
-        # [수정] 이동 로직: 헤더에서만 드래그 가능하도록 변경
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
         def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
 
         header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
-        # 헤더와 시계 라벨에만 드래그 이벤트 바인딩
         header.bind("<Button-1>", sm); header.bind("<B1-Motion>", dm)
         
         ov_elements['now'] = tk.Label(header, text="00:00:00", fg="#00FF7F", bg="#1A1A1A", font=("Segoe UI", 10, "bold"))
@@ -220,10 +244,9 @@ def start_logic(names):
             
             widgets = [c, nl, tl, msg]
             for w_ in widgets:
-                # 카드 내부 영역은 오직 타이머 로직(좌클릭/우클릭)만 수행하며 이동은 수행하지 않음
                 w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
                 if not is_guest:
-                    w_.bind("<Button-3>", lambda e, x=k: (resurrection_alive.update({x: not resurrection_alive[x]}), update_display()))
+                    w_.bind("<Button-3>", lambda e, x=k: toggle_status(x))
             return c, nl, tl, msg
 
         for i, k in enumerate(['f1','f2','f3','f4']):
