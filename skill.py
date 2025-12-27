@@ -31,24 +31,23 @@ ov_root = None
 ov_elements = {}
 resurrection_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
 guest_beep_flag = False
-# [사용 내역 저장용 리스트]
 usage_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': [], 'f5': []}
 
 def show_manual():
     manual_text = (
         "[ Resurrection_Timer 사용 설명서 ]\n\n"
         "1. 조작 안내\n"
+        " - 상단 바 드래그: 오버레이 위치 이동\n"
         " - 마우스 좌클릭: 타이머 시작 (30분/13분)\n"
         " - 마우스 우클릭: 비숍 사망/생존(D.O) 토글\n\n"
         "2. 주요 기능\n"
         " - 노란색: 사용 시 손님 연속 사망 대응 불가\n"
         " - 빨간색: 사망 시 로테이션 붕괴 위험\n\n"
-        "3. 자동 클립보드\n"
-        " - 클릭 시 현재 상태가 즉시 복사됩니다."
+        "3. 로그 저장\n"
+        " - 종료 시 상세 타임라인 리포트 생성"
     )
     messagebox.showinfo("Resurrection_Timer Manual", manual_text)
 
-# [로그 생성 함수 수정 - 시간순 통합 로그 추가]
 def create_exit_log(names):
     try:
         now = datetime.datetime.now()
@@ -63,27 +62,22 @@ def create_exit_log(names):
             f"-------------------------------------------"
         ]
         
-        # 1. 개별 리스트 출력
         for k in ['f1', 'f2', 'f3', 'f4', 'f5']:
             log_content.append(f"[{u_dict[k]}] 기록:")
             if usage_logs[k]:
                 for idx, t in enumerate(usage_logs[k], 1):
                     log_content.append(f"  {idx}. {t.strftime('%H:%M:%S')}")
-            else:
-                log_content.append("  - 기록 없음")
+            else: log_content.append("  - 기록 없음")
             log_content.append("")
             
-        # 2. 시간순 통합 로그 생성
         log_content.append(f"-------------------------------------------")
         log_content.append(f"2. 미션 타임라인 (시간순 정렬)")
         log_content.append(f"-------------------------------------------")
         
         all_events = []
         for k, times in usage_logs.items():
-            for t in times:
-                all_events.append((t, u_dict[k]))
+            for t in times: all_events.append((t, u_dict[k]))
         
-        # 시간순으로 정렬
         all_events.sort(key=lambda x: x[0])
         
         if all_events:
@@ -91,16 +85,14 @@ def create_exit_log(names):
                 t, name = event
                 action = "사망 기록" if name == "손님" else "리저 사용"
                 log_content.append(f"[{t.strftime('%H:%M:%S')}] {name} - {action}")
-        else:
-            log_content.append("- 기록된 내역이 없습니다.")
+        else: log_content.append("- 기록된 내역이 없습니다.")
             
         log_content.append(f"-------------------------------------------")
         log_content.append(f"리포트 생성 완료.")
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write("\n".join(log_content))
-    except:
-        pass
+    except: pass
 
 # [3] 메인 로직
 def start_logic(names):
@@ -201,13 +193,18 @@ def start_logic(names):
         ov_root.configure(bg="#0F0F0F")
         w, h = 300, 420; ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
+        # [수정] 이동 로직: 헤더에서만 드래그 가능하도록 변경
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
         def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
-        ov_root.bind("<Button-1>", sm); ov_root.bind("<B1-Motion>", dm)
 
         header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
+        # 헤더와 시계 라벨에만 드래그 이벤트 바인딩
+        header.bind("<Button-1>", sm); header.bind("<B1-Motion>", dm)
+        
         ov_elements['now'] = tk.Label(header, text="00:00:00", fg="#00FF7F", bg="#1A1A1A", font=("Segoe UI", 10, "bold"))
         ov_elements['now'].pack(side=tk.LEFT, padx=15)
+        ov_elements['now'].bind("<Button-1>", sm); ov_elements['now'].bind("<B1-Motion>", dm)
+        
         tk.Button(header, text="✕", bg="#1A1A1A", fg="#888", bd=0, command=safe_exit).pack(side=tk.RIGHT, padx=10)
         tk.Button(header, text="?", bg="#1A1A1A", fg="#888", bd=0, command=show_manual).pack(side=tk.RIGHT, padx=5)
         tk.Button(header, text="⚙", bg="#1A1A1A", fg="#888", bd=0, command=go_to_setup).pack(side=tk.RIGHT)
@@ -223,6 +220,7 @@ def start_logic(names):
             
             widgets = [c, nl, tl, msg]
             for w_ in widgets:
+                # 카드 내부 영역은 오직 타이머 로직(좌클릭/우클릭)만 수행하며 이동은 수행하지 않음
                 w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
                 if not is_guest:
                     w_.bind("<Button-3>", lambda e, x=k: (resurrection_alive.update({x: not resurrection_alive[x]}), update_display()))
