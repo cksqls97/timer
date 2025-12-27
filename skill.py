@@ -31,6 +31,8 @@ ov_root = None
 ov_elements = {}
 resurrection_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
 guest_beep_flag = False
+# [사용 내역 저장용 리스트]
+usage_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': [], 'f5': []}
 
 def show_manual():
     manual_text = (
@@ -46,13 +48,70 @@ def show_manual():
     )
     messagebox.showinfo("Resurrection_Timer Manual", manual_text)
 
+# [로그 생성 함수 수정 - 시간순 통합 로그 추가]
+def create_exit_log(names):
+    try:
+        now = datetime.datetime.now()
+        filename = now.strftime("%Y-%m-%d_%H시%M분%S초_미션리포트.txt")
+        u_dict = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
+        
+        log_content = [
+            f"=== Resurrection Timer 미션 상세 리포트 ===",
+            f"미션 종료 시각: {now.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"-------------------------------------------",
+            f"1. 대상별 사용 내역 (목록)",
+            f"-------------------------------------------"
+        ]
+        
+        # 1. 개별 리스트 출력
+        for k in ['f1', 'f2', 'f3', 'f4', 'f5']:
+            log_content.append(f"[{u_dict[k]}] 기록:")
+            if usage_logs[k]:
+                for idx, t in enumerate(usage_logs[k], 1):
+                    log_content.append(f"  {idx}. {t.strftime('%H:%M:%S')}")
+            else:
+                log_content.append("  - 기록 없음")
+            log_content.append("")
+            
+        # 2. 시간순 통합 로그 생성
+        log_content.append(f"-------------------------------------------")
+        log_content.append(f"2. 미션 타임라인 (시간순 정렬)")
+        log_content.append(f"-------------------------------------------")
+        
+        all_events = []
+        for k, times in usage_logs.items():
+            for t in times:
+                all_events.append((t, u_dict[k]))
+        
+        # 시간순으로 정렬
+        all_events.sort(key=lambda x: x[0])
+        
+        if all_events:
+            for idx, event in enumerate(all_events, 1):
+                t, name = event
+                action = "사망 기록" if name == "손님" else "리저 사용"
+                log_content.append(f"[{t.strftime('%H:%M:%S')}] {name} - {action}")
+        else:
+            log_content.append("- 기록된 내역이 없습니다.")
+            
+        log_content.append(f"-------------------------------------------")
+        log_content.append(f"리포트 생성 완료.")
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("\n".join(log_content))
+    except:
+        pass
+
 # [3] 메인 로직
 def start_logic(names):
     u = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
     nt_times = {k: None for k in u.keys()}
 
+    def safe_exit():
+        create_exit_log(names)
+        os._exit(0)
+
     def go_to_setup():
-        # 단축키 해제 로직 제거 (클릭 방식이므로)
         if ov_root: ov_root.destroy()
         show_setup_ui()
 
@@ -121,16 +180,15 @@ def start_logic(names):
         else: tl.config(text="READY", fg="#03DAC6"); msg.config(text=""); guest_beep_flag = False
         ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
 
-    # [핵심] 클릭 이벤트 처리 함수
     def on_click_event(k):
         now = datetime.datetime.now()
         if k in ['f1','f2','f3','f4']:
-            # 현재 쿨타임 중이 아닐 때만 갱신 (리저 사용)
             if not nt_times[k] or now >= nt_times[k]:
                 nt_times[k] = now + datetime.timedelta(minutes=30)
+                usage_logs[k].append(now)
         elif k == 'f5':
-            # 손님 사망 타이머 갱신
             nt_times['f5'] = now + datetime.timedelta(minutes=13)
+            usage_logs['f5'].append(now)
             global guest_beep_flag
             guest_beep_flag = False
         update_display()
@@ -150,7 +208,7 @@ def start_logic(names):
         header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
         ov_elements['now'] = tk.Label(header, text="00:00:00", fg="#00FF7F", bg="#1A1A1A", font=("Segoe UI", 10, "bold"))
         ov_elements['now'].pack(side=tk.LEFT, padx=15)
-        tk.Button(header, text="✕", bg="#1A1A1A", fg="#888", bd=0, command=lambda: os._exit(0)).pack(side=tk.RIGHT, padx=10)
+        tk.Button(header, text="✕", bg="#1A1A1A", fg="#888", bd=0, command=safe_exit).pack(side=tk.RIGHT, padx=10)
         tk.Button(header, text="?", bg="#1A1A1A", fg="#888", bd=0, command=show_manual).pack(side=tk.RIGHT, padx=5)
         tk.Button(header, text="⚙", bg="#1A1A1A", fg="#888", bd=0, command=go_to_setup).pack(side=tk.RIGHT)
 
@@ -163,7 +221,6 @@ def start_logic(names):
             msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2)
             nl.pack(pady=(5,0)); tl.pack(); msg.pack(pady=(0,5))
             
-            # 모든 위젯에 클릭 바인딩 (좌클릭: 실행, 우클릭: 상태 토글)
             widgets = [c, nl, tl, msg]
             for w_ in widgets:
                 w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
