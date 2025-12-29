@@ -132,13 +132,21 @@ def start_logic(names):
 
     def update_display():
         now = datetime.datetime.now()
-        alive_times = sorted([nt_times[rk] if nt_times[rk] and nt_times[rk] > now else now 
-                             for rk in ['f1','f2','f3','f4'] if resurrection_alive[rk]])
+        
+        # 가용한 비숍들의 시간 리스트 (READY인 경우 now로 취급)
+        current_alives = []
+        for rk in ['f1','f2','f3','f4']:
+            if resurrection_alive[rk]:
+                t = nt_times[rk]
+                current_alives.append(t if (t and t > now) else now)
+        current_alives.sort()
+        
         guest_deadline = nt_times['f5'] if nt_times['f5'] else now
 
         for rk in ['f1','f2','f3','f4']:
             c, nl, tl, msg = ov_elements[rk]
             nl.config(text=u[rk], fg="white")
+            
             if not resurrection_alive[rk]:
                 c.config(highlightbackground="#441111", bg="#150A0A")
                 for w in [nl, tl, msg]: w.config(bg="#150A0A")
@@ -146,38 +154,48 @@ def start_logic(names):
             
             c.config(bg="#1E1E1E"); nl.config(bg="#1E1E1E"); tl.config(bg="#1E1E1E"); msg.config(bg="#1E1E1E")
             
-            # [수정 부분] 만료 시간이 현재보다 미래일 때만 시간 표시, 아니면 READY 표시
+            # [수정 1] 만료 시 READY 표기 로직
             if nt_times[rk] and nt_times[rk] > now:
                 tl.config(text=nt_times[rk].strftime('%H:%M'), fg="#FF5252")
                 msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
             else:
                 tl.config(text="READY", fg="#4CAF50")
+                
+                # [수정 2] READY 비숍 중복 대응 로직 개선
                 warn_texts = []
-                tmp_u = sorted(alive_times)
-                try:
-                    idx = tmp_u.index(now); tmp_u[idx] = now + datetime.timedelta(minutes=30)
-                    tmp_u = sorted(tmp_u)
-                    if len(tmp_u) >= 2: tmp_u[0] = tmp_u[0] + datetime.timedelta(minutes=30)
-                    if min(tmp_u) > guest_deadline: warn_texts.append("사용 시 불가")
-                except: pass
-                tmp_d = sorted(alive_times)
-                try:
-                    tmp_d.remove(now)
-                    if tmp_d:
-                        tmp_d[0] = tmp_d[0] + datetime.timedelta(minutes=30)
-                        if min(tmp_d) > guest_deadline: warn_texts.append("사망 시 불가")
-                    else: warn_texts.append("사망 시 불가")
-                except: pass
+                
+                # 사용 시 불가 체크
+                tmp_u = sorted(current_alives)
+                for i, t in enumerate(tmp_u):
+                    if t <= now: 
+                        tmp_u[i] = now + datetime.timedelta(minutes=30)
+                        break
+                tmp_u.sort()
+                if tmp_u[0] > guest_deadline:
+                    warn_texts.append("사용 시 불가")
+
+                # 사망 시 불가 체크
+                tmp_d = sorted(current_alives)
+                found = False
+                for i, t in enumerate(tmp_d):
+                    if t <= now:
+                        tmp_d.pop(i)
+                        found = True
+                        break
+                if not found or not tmp_d or sorted(tmp_d)[0] > guest_deadline:
+                    warn_texts.append("사망 시 불가")
+
                 if "사망 시 불가" in warn_texts:
                     msg.config(text="\n".join(warn_texts), fg="#FF5252"); c.config(highlightbackground="#FF1744", highlightthickness=2)
                 elif "사용 시 불가" in warn_texts:
                     msg.config(text="\n".join(warn_texts), fg="#FFD600"); c.config(highlightbackground="#FFD600", highlightthickness=2)
-                else: msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+                else: 
+                    msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
 
         c, nl, tl, msg = ov_elements['f5']
         if nt_times['f5'] and now < nt_times['f5']:
             tl.config(text=nt_times['f5'].strftime('%H:%M'), fg="#FF5252")
-            min_r = min(alive_times) if alive_times else now + datetime.timedelta(minutes=99)
+            min_r = current_alives[0] if current_alives else now + datetime.timedelta(minutes=99)
             m_sec = (nt_times['f5'] - min_r).total_seconds()
             msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
             global guest_beep_flag
