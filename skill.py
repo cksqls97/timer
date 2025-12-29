@@ -1,4 +1,4 @@
-import keyboard, pyperclip, datetime, tkinter as tk, json, os, sys, winsound, ctypes
+import pyperclip, datetime, tkinter as tk, json, os, sys, winsound, ctypes
 from tkinter import messagebox
 
 # [1] 관리자 권한 체크
@@ -40,10 +40,10 @@ def show_manual():
         "1. 조작 안내\n"
         " - 상단 바 드래그: 오버레이 위치 이동\n"
         " - 마우스 좌클릭: 타이머 시작 (30분/13분)\n"
-        " - 마우스 우클릭: 비숍 사망/생존(D.O) 토글\n\n"
+        " - 마우스 우클릭: 비숍 사망/생존(사망) 토글\n\n"
         "2. 주요 기능\n"
-        " - 노란색: 사용 시 손님 연속 사망 대응 불가\n"
-        " - 빨간색: 사망 시 로테이션 붕괴 위험\n\n"
+        " - 타이머 기반 실시간 로테이션 관리\n"
+        " - 1분 간격 클립보드 자동 업데이트\n\n"
         "3. 로그 저장\n"
         " - 종료 시 상세 타임라인 리포트 생성 (사망/부활 포함)"
     )
@@ -130,11 +130,10 @@ def start_logic(names):
         g_str = f"손님 {nt_times['f5'].strftime('%M')}" if nt_times['f5'] and nt_times['f5'] > now else "손님"
         pyperclip.copy(f"현재 {cur_time} | {' '.join(o_p)} | {g_str}")
 
-    # [수정] 1분마다 클립보드를 자동으로 업데이트하는 함수 추가
     def auto_clipboard_tick():
         if ov_root.winfo_exists():
             update_clipboard()
-            ov_root.after(60000, auto_clipboard_tick) # 60,000ms = 1분
+            ov_root.after(60000, auto_clipboard_tick)
 
     def update_display():
         now = datetime.datetime.now()
@@ -146,8 +145,6 @@ def start_logic(names):
                 current_alives.append(t if (t and t > now) else now)
         current_alives.sort()
         
-        guest_deadline = nt_times['f5'] if nt_times['f5'] else now
-
         for rk in ['f1','f2','f3','f4']:
             c, nl, tl, rl, msg = ov_elements[rk]
             nl.config(text=u[rk], fg="white")
@@ -155,48 +152,21 @@ def start_logic(names):
             if not resurrection_alive[rk]:
                 c.config(highlightbackground="#441111", bg="#150A0A")
                 for w in [nl, tl, rl, msg]: w.config(bg="#150A0A")
-                tl.config(text="D.O", fg="#552222"); rl.config(text=""); msg.config(text=""); continue
+                tl.config(text="사망", fg="#552222"); rl.config(text=""); msg.config(text=""); continue
             
             c.config(bg="#1E1E1E"); nl.config(bg="#1E1E1E"); tl.config(bg="#1E1E1E"); rl.config(bg="#1E1E1E"); msg.config(bg="#1E1E1E")
+            c.config(highlightbackground="#333", highlightthickness=1) 
             
             if nt_times[rk] and nt_times[rk] > now:
                 diff = nt_times[rk] - now
                 m, s = divmod(int(diff.total_seconds()), 60)
                 tl.config(text=nt_times[rk].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
                 rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
-                msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+                msg.config(text="")
             else:
                 tl.config(text="READY", fg="#4CAF50", font=("Segoe UI", 15, "bold"))
                 rl.config(text="")
-                
-                warn_texts = []
-                
-                tmp_u = sorted(current_alives)
-                for i, t in enumerate(tmp_u):
-                    if t <= now: 
-                        tmp_u[i] = now + datetime.timedelta(minutes=30)
-                        break
-                tmp_u.sort()
-                next_guest_deadline = now + datetime.timedelta(minutes=13)
-                if tmp_u[0] > next_guest_deadline:
-                    warn_texts.append("사용 시 불가")
-
-                tmp_d = sorted(current_alives)
-                found = False
-                for i, t in enumerate(tmp_d):
-                    if t <= now:
-                        tmp_d.pop(i)
-                        found = True
-                        break
-                if not found or not tmp_d or sorted(tmp_d)[0] > guest_deadline:
-                    warn_texts.append("사망 시 불가")
-
-                if "사망 시 불가" in warn_texts:
-                    msg.config(text="\n".join(warn_texts), fg="#FF5252"); c.config(highlightbackground="#FF1744", highlightthickness=2)
-                elif "사용 시 불가" in warn_texts:
-                    msg.config(text="\n".join(warn_texts), fg="#FFD600"); c.config(highlightbackground="#FFD600", highlightthickness=2)
-                else: 
-                    msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+                msg.config(text="")
 
         c, nl, tl, rl, msg = ov_elements['f5']
         if nt_times['f5'] and now < nt_times['f5']:
@@ -228,15 +198,15 @@ def start_logic(names):
             usage_logs['f5'].append(now)
             global guest_beep_flag
             guest_beep_flag = False
-        update_display()
+        # 수동 update_display() 제거 (auto_tick에서 자동 반영)
         update_clipboard()
 
     def toggle_status(k):
         now = datetime.datetime.now()
         resurrection_alive[k] = not resurrection_alive[k]
-        status_text = "생존(부활) 합류" if resurrection_alive[k] else "사망(D.O) 발생"
+        status_text = "생존(부활) 합류" if resurrection_alive[k] else "사망 발생"
         status_logs[k].append((now, status_text))
-        update_display()
+        # 수동 update_display() 제거 (auto_tick에서 자동 반영)
 
     def create_overlay():
         global ov_root, ov_elements
@@ -292,36 +262,36 @@ def start_logic(names):
             if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
         
         auto_tick()
-        auto_clipboard_tick() # 자동 클립보드 업데이트 시작
+        auto_clipboard_tick()
         ov_root.mainloop()
 
     create_overlay()
 
-# [4] 설정 UI
+# [4] 설정 UI (여백 최적화 수정)
 def show_setup_ui():
     root = tk.Tk(); root.title("Resurrection_Timer Setup")
-    root.geometry("420x580"); root.configure(bg="#121212")
+    root.geometry("400x520"); root.configure(bg="#121212") # 창 크기 소폭 축소
     root.eval('tk::PlaceWindow . center')
     config = load_config()
 
-    header = tk.Frame(root, bg="#1A1A1A", pady=25); header.pack(fill="x")
-    tk.Label(header, text="Resurrection_Timer", font=("Segoe UI", 20, "bold"), bg="#1A1A1A", fg="#BB86FC").pack()
-    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, command=show_manual).pack(pady=5)
+    header = tk.Frame(root, bg="#1A1A1A", pady=15); header.pack(fill="x") # pady 25 -> 15
+    tk.Label(header, text="Resurrection_Timer", font=("Segoe UI", 18, "bold"), bg="#1A1A1A", fg="#BB86FC").pack()
+    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, command=show_manual).pack(pady=2)
 
-    f = tk.Frame(root, bg="#121212", pady=30); f.pack(padx=50, fill="x")
+    f = tk.Frame(root, bg="#121212", pady=15); f.pack(padx=40, fill="x") # pady 30 -> 15, padx 50 -> 40
     ents = []
     for i in range(4):
-        r = tk.Frame(f, bg="#121212"); r.pack(fill="x", pady=10)
+        r = tk.Frame(f, bg="#121212"); r.pack(fill="x", pady=6) # pady 10 -> 6
         tk.Label(r, text=f"BISHOP {i+1}", font=("Segoe UI", 9, "bold"), bg="#121212", fg="#777", width=10, anchor="w").pack(side=tk.LEFT)
-        e = tk.Entry(r, font=("Segoe UI", 12), bg="#1E1E1E", fg="white", insertbackground="white", bd=0, highlightthickness=1, highlightbackground="#333")
-        e.insert(0, config["n"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", ipady=8, padx=5)
+        e = tk.Entry(r, font=("Segoe UI", 11), bg="#1E1E1E", fg="white", insertbackground="white", bd=0, highlightthickness=1, highlightbackground="#333")
+        e.insert(0, config["n"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", ipady=6, padx=5) # ipady 8 -> 6
         ents.append(e)
 
     def start():
         nv = [e.get() for e in ents]
         save_config(nv); root.destroy(); start_logic(nv)
 
-    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 13, "bold"), pady=15, bd=0).pack(pady=30, padx=50, fill="x")
+    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 12, "bold"), pady=12, bd=0).pack(pady=20, padx=40, fill="x")
     root.mainloop()
 
 if __name__ == "__main__":
