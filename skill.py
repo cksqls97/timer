@@ -30,24 +30,84 @@ def save_config(names):
 ov_root = None
 ov_elements = {}
 resurrection_alive = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
-ready_notified = {'f1': True, 'f2': True, 'f3': True, 'f4': True}
-guest_notified = True # 손님 1분 알림 상태 추적용 추가
-last_clip_minute = -1 
+guest_beep_flag = False
 usage_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': [], 'f5': []}
+status_logs = {'f1': [], 'f2': [], 'f3': [], 'f4': []}
 
 def show_manual():
-    manual_text = "[ Resurrection_Timer ]\n- 좌클릭: 타이머 시작\n- 우클릭: 생존상태 토글(D.O)\n- 매 분 00초 클립보드 자동복사\n- 비숍 READY 및 손님 1분 전 사운드 알림"
-    messagebox.showinfo("Manual", manual_text)
+    manual_text = (
+        "[ Resurrection_Timer 사용 설명서 ]\n\n"
+        "1. 조작 안내\n"
+        " - 상단 바 드래그: 오버레이 위치 이동\n"
+        " - 마우스 좌클릭: 타이머 시작 (30분/13분)\n"
+        " - 마우스 우클릭: 비숍 사망/생존(D.O) 토글\n\n"
+        "2. 주요 기능\n"
+        " - 노란색: 사용 시 손님 연속 사망 대응 불가\n"
+        " - 빨간색: 사망 시 로테이션 붕괴 위험\n\n"
+        "3. 로그 저장\n"
+        " - 종료 시 상세 타임라인 리포트 생성 (사망/부활 포함)"
+    )
+    messagebox.showinfo("Resurrection_Timer Manual", manual_text)
 
 def create_exit_log(names):
     try:
         now = datetime.datetime.now()
         filename = now.strftime("%Y-%m-%d_%H시%M분%S초_미션리포트.txt")
-        with open(filename, "w", encoding="utf-8") as f: f.write(f"Mission End: {now}")
+        u_dict = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
+        
+        log_content = [
+            f"=== Resurrection Timer 미션 상세 리포트 ===",
+            f"미션 종료 시각: {now.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"-------------------------------------------",
+            f"1. 대상별 상세 기록",
+            f"-------------------------------------------"
+        ]
+        
+        for k in ['f1', 'f2', 'f3', 'f4', 'f5']:
+            log_content.append(f"[{u_dict[k]}]")
+            personal_events = []
+            for t in usage_logs[k]:
+                action = "사망 기록" if k == 'f5' else "리저 사용"
+                personal_events.append((t, action))
+            if k != 'f5':
+                for t, s in status_logs[k]:
+                    personal_events.append((t, s))
+            personal_events.sort(key=lambda x: x[0])
+            if personal_events:
+                for idx, (t, act) in enumerate(personal_events, 1):
+                    log_content.append(f"  {idx}. [{t.strftime('%H:%M:%S')}] {act}")
+            else:
+                log_content.append("  - 기록 없음")
+            log_content.append("")
+            
+        log_content.append(f"-------------------------------------------")
+        log_content.append(f"2. 미션 통합 타임라인 (시간순)")
+        log_content.append(f"-------------------------------------------")
+        
+        all_events = []
+        for k, times in usage_logs.items():
+            for t in times:
+                action = "사망 기록" if k == 'f5' else "리저 사용"
+                all_events.append((t, u_dict[k], action))
+        for k, states in status_logs.items():
+            for t, s in states:
+                all_events.append((t, u_dict[k], s))
+        
+        all_events.sort(key=lambda x: x[0])
+        if all_events:
+            for t, name, act in all_events:
+                log_content.append(f"[{t.strftime('%H:%M:%S')}] {name: <6} | {act}")
+        else:
+            log_content.append("- 기록된 내역이 없습니다.")
+            
+        log_content.append(f"-------------------------------------------")
+        log_content.append(f"리포트 생성 완료.")
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("\n".join(log_content))
     except: pass
 
 def start_logic(names):
-    global guest_notified
     u = {'f1': names[0], 'f2': names[1], 'f3': names[2], 'f4': names[3], 'f5': "손님"}
     nt_times = {k: None for k in u.keys()}
 
@@ -55,95 +115,166 @@ def start_logic(names):
         create_exit_log(names)
         os._exit(0)
 
+    def go_to_setup():
+        if ov_root: ov_root.destroy()
+        show_setup_ui()
+
     def update_clipboard():
         now = datetime.datetime.now()
+        cur_time = now.strftime('%H%M')
         o_p = []
         for rk in ['f1','f2','f3','f4']:
-            if nt_times[rk] and nt_times[rk] > now: o_p.append(f"{u[rk]} {nt_times[rk].strftime('%M')}")
+            if nt_times[rk] and nt_times[rk] > now:
+                o_p.append(f"{u[rk]} {nt_times[rk].strftime('%M')}")
             else: o_p.append(u[rk])
         g_str = f"손님 {nt_times['f5'].strftime('%M')}" if nt_times['f5'] and nt_times['f5'] > now else "손님"
-        pyperclip.copy(f"현재 {now.strftime('%H%M')} | {' '.join(o_p)} | {g_str}")
+        pyperclip.copy(f"현재 {cur_time} | {' '.join(o_p)} | {g_str}")
+
+    # [수정] 1분마다 클립보드를 자동으로 업데이트하는 함수 추가
+    def auto_clipboard_tick():
+        if ov_root.winfo_exists():
+            update_clipboard()
+            ov_root.after(60000, auto_clipboard_tick) # 60,000ms = 1분
 
     def update_display():
-        global guest_notified
         now = datetime.datetime.now()
-        for rk in ['f1','f2','f3','f4','f5']:
+        
+        current_alives = []
+        for rk in ['f1','f2','f3','f4']:
+            if resurrection_alive[rk]:
+                t = nt_times[rk]
+                current_alives.append(t if (t and t > now) else now)
+        current_alives.sort()
+        
+        guest_deadline = nt_times['f5'] if nt_times['f5'] else now
+
+        for rk in ['f1','f2','f3','f4']:
             c, nl, tl, rl, msg = ov_elements[rk]
-            nl.config(text=u[rk])
+            nl.config(text=u[rk], fg="white")
             
-            if rk != 'f5' and not resurrection_alive[rk]:
-                c.config(bg="#150A0A")
-                tl.config(text="D.O", fg="#552222")
-                rl.config(text="")
+            if not resurrection_alive[rk]:
+                c.config(highlightbackground="#441111", bg="#150A0A")
+                for w in [nl, tl, rl, msg]: w.config(bg="#150A0A")
+                tl.config(text="D.O", fg="#552222"); rl.config(text=""); msg.config(text=""); continue
+            
+            c.config(bg="#1E1E1E"); nl.config(bg="#1E1E1E"); tl.config(bg="#1E1E1E"); rl.config(bg="#1E1E1E"); msg.config(bg="#1E1E1E")
+            
+            if nt_times[rk] and nt_times[rk] > now:
+                diff = nt_times[rk] - now
+                m, s = divmod(int(diff.total_seconds()), 60)
+                tl.config(text=nt_times[rk].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
+                rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
+                msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
             else:
-                c.config(bg="#1E1E1E")
-                if nt_times[rk] and nt_times[rk] > now:
-                    diff = nt_times[rk] - now
-                    total_sec = int(diff.total_seconds())
-                    m, s = divmod(total_sec, 60)
-                    
-                    # [손님 1분 전 알림 로직]
-                    if rk == 'f5' and not guest_notified and 59 <= total_sec <= 60:
-                        winsound.Beep(800, 600) # 조금 더 낮은 음으로 길게 알림
-                        guest_notified = True
-                    
-                    tl.config(text=nt_times[rk].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
-                    rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
-                else:
-                    # [비숍 READY 알림 로직]
-                    if rk in ready_notified and not ready_notified[rk]:
-                        winsound.Beep(1000, 400)
-                        ready_notified[rk] = True
-                    
-                    ready_color = "#03DAC6" if rk == 'f5' else "#4CAF50"
-                    tl.config(text="READY", fg=ready_color, font=("Segoe UI", 15, "bold"))
-                    rl.config(text="")
+                tl.config(text="READY", fg="#4CAF50", font=("Segoe UI", 15, "bold"))
+                rl.config(text="")
+                
+                warn_texts = []
+                
+                tmp_u = sorted(current_alives)
+                for i, t in enumerate(tmp_u):
+                    if t <= now: 
+                        tmp_u[i] = now + datetime.timedelta(minutes=30)
+                        break
+                tmp_u.sort()
+                next_guest_deadline = now + datetime.timedelta(minutes=13)
+                if tmp_u[0] > next_guest_deadline:
+                    warn_texts.append("사용 시 불가")
+
+                tmp_d = sorted(current_alives)
+                found = False
+                for i, t in enumerate(tmp_d):
+                    if t <= now:
+                        tmp_d.pop(i)
+                        found = True
+                        break
+                if not found or not tmp_d or sorted(tmp_d)[0] > guest_deadline:
+                    warn_texts.append("사망 시 불가")
+
+                if "사망 시 불가" in warn_texts:
+                    msg.config(text="\n".join(warn_texts), fg="#FF5252"); c.config(highlightbackground="#FF1744", highlightthickness=2)
+                elif "사용 시 불가" in warn_texts:
+                    msg.config(text="\n".join(warn_texts), fg="#FFD600"); c.config(highlightbackground="#FFD600", highlightthickness=2)
+                else: 
+                    msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+
+        c, nl, tl, rl, msg = ov_elements['f5']
+        if nt_times['f5'] and now < nt_times['f5']:
+            diff = nt_times['f5'] - now
+            m, s = divmod(int(diff.total_seconds()), 60)
+            tl.config(text=nt_times['f5'].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
+            rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
+            
+            min_r = current_alives[0] if current_alives else now + datetime.timedelta(minutes=99)
+            m_sec = (nt_times['f5'] - min_r).total_seconds()
+            msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
+            
+            global guest_beep_flag
+            if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
+                winsound.Beep(1000, 500); guest_beep_flag = True
+        else:
+            tl.config(text="READY", fg="#03DAC6", font=("Segoe UI", 15, "bold")); rl.config(text=""); msg.config(text=""); guest_beep_flag = False
+            
         ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
 
     def on_click_event(k):
-        global guest_notified
         now = datetime.datetime.now()
-        if k in ['f1','f2','f3','f4']: 
-            nt_times[k] = now + datetime.timedelta(minutes=30)
-            ready_notified[k] = False
-        elif k == 'f5': 
+        if k in ['f1','f2','f3','f4']:
+            if not nt_times[k] or now >= nt_times[k]:
+                nt_times[k] = now + datetime.timedelta(minutes=30)
+                usage_logs[k].append(now)
+        elif k == 'f5':
             nt_times['f5'] = now + datetime.timedelta(minutes=13)
-            guest_notified = False # 손님 타이머 시작 시 알림 대기 상태로 변경
-        update_display(); update_clipboard()
+            usage_logs['f5'].append(now)
+            global guest_beep_flag
+            guest_beep_flag = False
+        update_display()
+        update_clipboard()
 
     def toggle_status(k):
+        now = datetime.datetime.now()
         resurrection_alive[k] = not resurrection_alive[k]
+        status_text = "생존(부활) 합류" if resurrection_alive[k] else "사망(D.O) 발생"
+        status_logs[k].append((now, status_text))
         update_display()
 
     def create_overlay():
         global ov_root, ov_elements
-        ov_root = tk.Tk()
+        ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
         ov_root.attributes("-topmost", True, "-alpha", 0.95); ov_root.overrideredirect(True)
         ov_root.configure(bg="#0F0F0F")
         w, h = 320, 520
         ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
-        header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
         def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
+
+        header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
         header.bind("<Button-1>", sm); header.bind("<B1-Motion>", dm)
         
         ov_elements['now'] = tk.Label(header, text="00:00:00", fg="#00FF7F", bg="#1A1A1A", font=("Segoe UI", 10, "bold"))
         ov_elements['now'].pack(side=tk.LEFT, padx=15)
+        
         tk.Button(header, text="✕", bg="#1A1A1A", fg="#888", bd=0, command=safe_exit).pack(side=tk.RIGHT, padx=10)
+        tk.Button(header, text="?", bg="#1A1A1A", fg="#888", bd=0, command=show_manual).pack(side=tk.RIGHT, padx=5)
+        tk.Button(header, text="⚙", bg="#1A1A1A", fg="#888", bd=0, command=go_to_setup).pack(side=tk.RIGHT)
 
         main = tk.Frame(ov_root, bg="#0F0F0F", padx=10, pady=10); main.pack(fill="both", expand=True)
 
         def make_card(parent, k, is_guest=False):
-            c = tk.Frame(parent, bg="#1E1E1E", highlightthickness=1, highlightbackground="#333")
+            c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
             nl = tk.Label(c, text=u[k], fg="#AAAAAA", bg="#1E1E1E", font=("Malgun Gothic", 9))
             tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 15, "bold"))
             rl = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 9, "bold"))
             msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2)
+            
             nl.pack(pady=(5,0)); tl.pack(pady=2); rl.pack(pady=2); msg.pack(pady=(0,5))
-            for w_ in [c, nl, tl, rl, msg]:
+            
+            widgets = [c, nl, tl, rl, msg]
+            for w_ in widgets:
                 w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
-                if not is_guest: w_.bind("<Button-3>", lambda e, x=k: toggle_status(x))
+                if not is_guest:
+                    w_.bind("<Button-3>", lambda e, x=k: toggle_status(x))
             return c, nl, tl, rl, msg
 
         for i, k in enumerate(['f1','f2','f3','f4']):
@@ -154,59 +285,43 @@ def start_logic(names):
         c, nl, tl, rl, m = make_card(main, 'f5', is_guest=True)
         c.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         ov_elements['f5'] = (c, nl, tl, rl, m)
-        main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
 
+        main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
+        
         def auto_tick():
-            global last_clip_minute
-            if ov_root.winfo_exists():
-                now = datetime.datetime.now()
-                update_display()
-                if now.second == 0 and now.minute != last_clip_minute:
-                    update_clipboard(); last_clip_minute = now.minute
-                ov_root.after(1000, auto_tick)
-        auto_tick(); ov_root.mainloop()
+            if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
+        
+        auto_tick()
+        auto_clipboard_tick() # 자동 클립보드 업데이트 시작
+        ov_root.mainloop()
 
     create_overlay()
 
+# [4] 설정 UI
 def show_setup_ui():
-    root = tk.Tk()
-    root.title("Timer Setup")
-    root.geometry("400x600")
-    root.configure(bg="#121212")
-    
-    sw = root.winfo_screenwidth()
-    sh = root.winfo_screenheight()
-    root.geometry(f"+{(sw-400)//2}+{(sh-600)//2}")
-
+    root = tk.Tk(); root.title("Resurrection_Timer Setup")
+    root.geometry("420x580"); root.configure(bg="#121212")
+    root.eval('tk::PlaceWindow . center')
     config = load_config()
 
-    header = tk.Frame(root, bg="#121212", pady=20)
-    header.pack(fill="x")
-    tk.Label(header, text="Timer Configuration", font=("Segoe UI", 18, "bold"), bg="#121212", fg="#BB86FC").pack()
-    tk.Button(header, text="[ 도움말 보기 ]", font=("Malgun Gothic", 9), bg="#121212", fg="#03DAC6", bd=0, command=show_manual, cursor="hand2").pack(pady=5)
+    header = tk.Frame(root, bg="#1A1A1A", pady=25); header.pack(fill="x")
+    tk.Label(header, text="Resurrection_Timer", font=("Segoe UI", 20, "bold"), bg="#1A1A1A", fg="#BB86FC").pack()
+    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, command=show_manual).pack(pady=5)
 
-    input_frame = tk.Frame(root, bg="#121212")
-    input_frame.pack(padx=40, fill="x")
-
+    f = tk.Frame(root, bg="#121212", pady=30); f.pack(padx=50, fill="x")
     ents = []
     for i in range(4):
-        lbl = tk.Label(input_frame, text=f"BISHOP {i+1}", font=("Segoe UI", 8, "bold"), bg="#121212", fg="#888")
-        lbl.pack(anchor="w", pady=(10, 0))
-        e = tk.Entry(input_frame, font=("Malgun Gothic", 12), bg="#1E1E1E", fg="white", 
-                     insertbackground="white", bd=0, highlightthickness=1, highlightbackground="#333",
-                     highlightcolor="#BB86FC")
-        e.insert(0, config["n"][i])
-        e.pack(fill="x", ipady=8)
+        r = tk.Frame(f, bg="#121212"); r.pack(fill="x", pady=10)
+        tk.Label(r, text=f"BISHOP {i+1}", font=("Segoe UI", 9, "bold"), bg="#121212", fg="#777", width=10, anchor="w").pack(side=tk.LEFT)
+        e = tk.Entry(r, font=("Segoe UI", 12), bg="#1E1E1E", fg="white", insertbackground="white", bd=0, highlightthickness=1, highlightbackground="#333")
+        e.insert(0, config["n"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", ipady=8, padx=5)
         ents.append(e)
 
     def start():
-        nv = [e.get().strip() or f"비숍{i+1}" for i, e in enumerate(ents)]
+        nv = [e.get() for e in ents]
         save_config(nv); root.destroy(); start_logic(nv)
 
-    btn_start = tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", 
-                          font=("Segoe UI", 14, "bold"), activebackground="#A370F7", bd=0, cursor="hand2")
-    btn_start.pack(side="bottom", fill="x", padx=40, pady=40, ipady=20)
-
+    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 13, "bold"), pady=15, bd=0).pack(pady=30, padx=50, fill="x")
     root.mainloop()
 
 if __name__ == "__main__":
