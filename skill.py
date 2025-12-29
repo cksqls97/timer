@@ -156,28 +156,27 @@ def start_logic(names):
             if nt_times[rk] and nt_times[rk] > now:
                 diff = nt_times[rk] - now
                 m, s = divmod(int(diff.total_seconds()), 60)
-                tl.config(text=nt_times[rk].strftime('%H:%M'), fg="#FF5252")
-                rl.config(text=f"({m:02d}:{s:02d})", fg="#FFA0A0")
+                # 만료 시간 표시 (hh시 mm분)
+                tl.config(text=nt_times[rk].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
+                # 남은 시간 표시 (남은 시간: mm분 ss초)
+                rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
                 msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
             else:
-                tl.config(text="READY", fg="#4CAF50")
+                tl.config(text="READY", fg="#4CAF50", font=("Segoe UI", 15, "bold"))
                 rl.config(text="")
                 
                 warn_texts = []
                 
-                # [수정 로직] 사용 시 불가 판정: 지금 리저를 써서 손님을 살린다고 가정
                 tmp_u = sorted(current_alives)
                 for i, t in enumerate(tmp_u):
                     if t <= now: 
                         tmp_u[i] = now + datetime.timedelta(minutes=30)
                         break
                 tmp_u.sort()
-                # 지금 리저를 썼으니 손님은 13분 뒤에 다시 부활이 필요함
                 next_guest_deadline = now + datetime.timedelta(minutes=13)
                 if tmp_u[0] > next_guest_deadline:
                     warn_texts.append("사용 시 불가")
 
-                # 사망 시 불가 판정: 내가 지금 죽어서 리저가 하나 빠진다고 가정
                 tmp_d = sorted(current_alives)
                 found = False
                 for i, t in enumerate(tmp_d):
@@ -185,7 +184,6 @@ def start_logic(names):
                         tmp_d.pop(i)
                         found = True
                         break
-                # 내가 빠진 상태에서 가장 빠른 리저가 '현재' 손님 데드라인을 못 맞추면 경고
                 if not found or not tmp_d or sorted(tmp_d)[0] > guest_deadline:
                     warn_texts.append("사망 시 불가")
 
@@ -200,8 +198,8 @@ def start_logic(names):
         if nt_times['f5'] and now < nt_times['f5']:
             diff = nt_times['f5'] - now
             m, s = divmod(int(diff.total_seconds()), 60)
-            tl.config(text=nt_times['f5'].strftime('%H:%M'), fg="#FF5252")
-            rl.config(text=f"({m:02d}:{s:02d})", fg="#FFA0A0")
+            tl.config(text=nt_times['f5'].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 12, "bold"))
+            rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 9, "bold"))
             
             min_r = current_alives[0] if current_alives else now + datetime.timedelta(minutes=99)
             m_sec = (nt_times['f5'] - min_r).total_seconds()
@@ -211,7 +209,7 @@ def start_logic(names):
             if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
                 winsound.Beep(1000, 500); guest_beep_flag = True
         else:
-            tl.config(text="READY", fg="#03DAC6"); rl.config(text=""); msg.config(text=""); guest_beep_flag = False
+            tl.config(text="READY", fg="#03DAC6", font=("Segoe UI", 15, "bold")); rl.config(text=""); msg.config(text=""); guest_beep_flag = False
             
         ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
 
@@ -241,7 +239,7 @@ def start_logic(names):
         ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
         ov_root.attributes("-topmost", True, "-alpha", 0.95); ov_root.overrideredirect(True)
         ov_root.configure(bg="#0F0F0F")
-        w, h = 300, 480 
+        w, h = 320, 520 # 정보를 더 명확히 담기 위해 가로/세로 소폭 확장
         ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
         
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
@@ -261,12 +259,12 @@ def start_logic(names):
 
         def make_card(parent, k, is_guest=False):
             c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
-            nl = tk.Label(c, text=u[k], fg="#FFFFFF", bg="#1E1E1E", font=("Malgun Gothic", 9, "bold"))
+            nl = tk.Label(c, text=u[k], fg="#AAAAAA", bg="#1E1E1E", font=("Malgun Gothic", 9))
             tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 15, "bold"))
-            rl = tk.Label(c, text="", fg="#FFA0A0", bg="#1E1E1E", font=("Segoe UI", 10)) 
+            rl = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 9, "bold"))
             msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2)
             
-            nl.pack(pady=(5,0)); tl.pack(); rl.pack(); msg.pack(pady=(0,5))
+            nl.pack(pady=(5,0)); tl.pack(pady=2); rl.pack(pady=2); msg.pack(pady=(0,5))
             
             widgets = [c, nl, tl, rl, msg]
             for w_ in widgets:
