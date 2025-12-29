@@ -161,9 +161,8 @@ def start_logic(names):
             m, s = divmod(int(diff.total_seconds()), 60)
             tl.config(text=nt_times['f5'].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 10, "bold"))
             rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 8, "bold"))
-            min_r = current_alives[0] if current_alives else now + datetime.timedelta(minutes=99)
-            m_sec = (nt_times['f5'] - min_r).total_seconds()
-            msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
+            # 손님 칸의 mm분 여유/리저 부족 텍스트 메시지 표시부 제거 (항상 빈 문자열)
+            msg.config(text="") 
             global guest_beep_flag
             if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
                 winsound.Beep(1000, 500); guest_beep_flag = True
@@ -209,16 +208,12 @@ def start_logic(names):
         main = tk.Frame(ov_root, bg="#0F0F0F", padx=5, pady=5); main.pack(fill="both", expand=True)
         
         def make_card(parent, k, is_guest=False):
-            # 카드를 중앙 정렬하기 위해 컨테이너 설정
             c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
-            
-            # 카드 내부의 위젯들이 가로로 중앙에 오도록 anchor="center" 및 justify="center" 추가
             nl = tk.Label(c, text=u[k], fg="#AAAAAA", bg="#1E1E1E", font=("Malgun Gothic", 8), anchor="center")
             tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 11, "bold"), anchor="center")
             rl = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), anchor="center")
             msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 7, "bold"), anchor="center")
             
-            # pack 시 expand=True를 사용하여 수직 방향으로도 균형을 잡음
             nl.pack(pady=(5,0), fill="x")
             tl.pack(pady=2, fill="x")
             rl.pack(pady=2, fill="x")
