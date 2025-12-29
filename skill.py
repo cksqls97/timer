@@ -157,22 +157,27 @@ def start_logic(names):
                 diff = nt_times[rk] - now
                 m, s = divmod(int(diff.total_seconds()), 60)
                 tl.config(text=nt_times[rk].strftime('%H:%M'), fg="#FF5252")
-                rl.config(text=f"{m:02d}:{s:02d}", fg="#FFA0A0") # 남은 시간 표시
+                rl.config(text=f"({m:02d}:{s:02d})", fg="#FFA0A0")
                 msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
             else:
                 tl.config(text="READY", fg="#4CAF50")
-                rl.config(text="") # READY일 때는 남은 시간 숨김
+                rl.config(text="")
                 
                 warn_texts = []
+                
+                # [수정 로직] 사용 시 불가 판정: 지금 리저를 써서 손님을 살린다고 가정
                 tmp_u = sorted(current_alives)
                 for i, t in enumerate(tmp_u):
                     if t <= now: 
                         tmp_u[i] = now + datetime.timedelta(minutes=30)
                         break
                 tmp_u.sort()
-                if tmp_u[0] > guest_deadline:
+                # 지금 리저를 썼으니 손님은 13분 뒤에 다시 부활이 필요함
+                next_guest_deadline = now + datetime.timedelta(minutes=13)
+                if tmp_u[0] > next_guest_deadline:
                     warn_texts.append("사용 시 불가")
 
+                # 사망 시 불가 판정: 내가 지금 죽어서 리저가 하나 빠진다고 가정
                 tmp_d = sorted(current_alives)
                 found = False
                 for i, t in enumerate(tmp_d):
@@ -180,10 +185,139 @@ def start_logic(names):
                         tmp_d.pop(i)
                         found = True
                         break
+                # 내가 빠진 상태에서 가장 빠른 리저가 '현재' 손님 데드라인을 못 맞추면 경고
                 if not found or not tmp_d or sorted(tmp_d)[0] > guest_deadline:
                     warn_texts.append("사망 시 불가")
 
                 if "사망 시 불가" in warn_texts:
                     msg.config(text="\n".join(warn_texts), fg="#FF5252"); c.config(highlightbackground="#FF1744", highlightthickness=2)
                 elif "사용 시 불가" in warn_texts:
-                    msg.config(text="\n".join(warn_texts), fg="#FFD60
+                    msg.config(text="\n".join(warn_texts), fg="#FFD600"); c.config(highlightbackground="#FFD600", highlightthickness=2)
+                else: 
+                    msg.config(text=""); c.config(highlightbackground="#333", highlightthickness=1)
+
+        c, nl, tl, rl, msg = ov_elements['f5']
+        if nt_times['f5'] and now < nt_times['f5']:
+            diff = nt_times['f5'] - now
+            m, s = divmod(int(diff.total_seconds()), 60)
+            tl.config(text=nt_times['f5'].strftime('%H:%M'), fg="#FF5252")
+            rl.config(text=f"({m:02d}:{s:02d})", fg="#FFA0A0")
+            
+            min_r = current_alives[0] if current_alives else now + datetime.timedelta(minutes=99)
+            m_sec = (nt_times['f5'] - min_r).total_seconds()
+            msg.config(text="⚠️ 리저 부족" if m_sec < 0 else f"{int(m_sec//60)}m 여유", fg="#FF1744" if m_sec < 0 else "#FFAB00")
+            
+            global guest_beep_flag
+            if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
+                winsound.Beep(1000, 500); guest_beep_flag = True
+        else:
+            tl.config(text="READY", fg="#03DAC6"); rl.config(text=""); msg.config(text=""); guest_beep_flag = False
+            
+        ov_elements['now'].config(text=now.strftime('%H:%M:%S'))
+
+    def on_click_event(k):
+        now = datetime.datetime.now()
+        if k in ['f1','f2','f3','f4']:
+            if not nt_times[k] or now >= nt_times[k]:
+                nt_times[k] = now + datetime.timedelta(minutes=30)
+                usage_logs[k].append(now)
+        elif k == 'f5':
+            nt_times['f5'] = now + datetime.timedelta(minutes=13)
+            usage_logs['f5'].append(now)
+            global guest_beep_flag
+            guest_beep_flag = False
+        update_display()
+        update_clipboard()
+
+    def toggle_status(k):
+        now = datetime.datetime.now()
+        resurrection_alive[k] = not resurrection_alive[k]
+        status_text = "생존(부활) 합류" if resurrection_alive[k] else "사망(D.O) 발생"
+        status_logs[k].append((now, status_text))
+        update_display()
+
+    def create_overlay():
+        global ov_root, ov_elements
+        ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
+        ov_root.attributes("-topmost", True, "-alpha", 0.95); ov_root.overrideredirect(True)
+        ov_root.configure(bg="#0F0F0F")
+        w, h = 300, 480 
+        ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-30}+{ov_root.winfo_screenheight()-h-120}")
+        
+        def sm(e): ov_root.x, ov_root.y = e.x, e.y
+        def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
+
+        header = tk.Frame(ov_root, bg="#1A1A1A", height=35); header.pack(fill="x")
+        header.bind("<Button-1>", sm); header.bind("<B1-Motion>", dm)
+        
+        ov_elements['now'] = tk.Label(header, text="00:00:00", fg="#00FF7F", bg="#1A1A1A", font=("Segoe UI", 10, "bold"))
+        ov_elements['now'].pack(side=tk.LEFT, padx=15)
+        
+        tk.Button(header, text="✕", bg="#1A1A1A", fg="#888", bd=0, command=safe_exit).pack(side=tk.RIGHT, padx=10)
+        tk.Button(header, text="?", bg="#1A1A1A", fg="#888", bd=0, command=show_manual).pack(side=tk.RIGHT, padx=5)
+        tk.Button(header, text="⚙", bg="#1A1A1A", fg="#888", bd=0, command=go_to_setup).pack(side=tk.RIGHT)
+
+        main = tk.Frame(ov_root, bg="#0F0F0F", padx=10, pady=10); main.pack(fill="both", expand=True)
+
+        def make_card(parent, k, is_guest=False):
+            c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
+            nl = tk.Label(c, text=u[k], fg="#FFFFFF", bg="#1E1E1E", font=("Malgun Gothic", 9, "bold"))
+            tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 15, "bold"))
+            rl = tk.Label(c, text="", fg="#FFA0A0", bg="#1E1E1E", font=("Segoe UI", 10)) 
+            msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), height=2)
+            
+            nl.pack(pady=(5,0)); tl.pack(); rl.pack(); msg.pack(pady=(0,5))
+            
+            widgets = [c, nl, tl, rl, msg]
+            for w_ in widgets:
+                w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
+                if not is_guest:
+                    w_.bind("<Button-3>", lambda e, x=k: toggle_status(x))
+            return c, nl, tl, rl, msg
+
+        for i, k in enumerate(['f1','f2','f3','f4']):
+            c, nl, tl, rl, m = make_card(main, k)
+            c.grid(row=i//2, column=i%2, padx=5, pady=5, sticky="nsew")
+            ov_elements[k] = (c, nl, tl, rl, m)
+
+        c, nl, tl, rl, m = make_card(main, 'f5', is_guest=True)
+        c.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        ov_elements['f5'] = (c, nl, tl, rl, m)
+
+        main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
+        
+        def auto_tick():
+            if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
+        auto_tick(); ov_root.mainloop()
+
+    create_overlay()
+
+# [4] 설정 UI
+def show_setup_ui():
+    root = tk.Tk(); root.title("Resurrection_Timer Setup")
+    root.geometry("420x580"); root.configure(bg="#121212")
+    root.eval('tk::PlaceWindow . center')
+    config = load_config()
+
+    header = tk.Frame(root, bg="#1A1A1A", pady=25); header.pack(fill="x")
+    tk.Label(header, text="Resurrection_Timer", font=("Segoe UI", 20, "bold"), bg="#1A1A1A", fg="#BB86FC").pack()
+    tk.Button(header, text="사용 설명서 보기", font=("Segoe UI", 9), bg="#1A1A1A", fg="#03DAC6", bd=0, command=show_manual).pack(pady=5)
+
+    f = tk.Frame(root, bg="#121212", pady=30); f.pack(padx=50, fill="x")
+    ents = []
+    for i in range(4):
+        r = tk.Frame(f, bg="#121212"); r.pack(fill="x", pady=10)
+        tk.Label(r, text=f"BISHOP {i+1}", font=("Segoe UI", 9, "bold"), bg="#121212", fg="#777", width=10, anchor="w").pack(side=tk.LEFT)
+        e = tk.Entry(r, font=("Segoe UI", 12), bg="#1E1E1E", fg="white", insertbackground="white", bd=0, highlightthickness=1, highlightbackground="#333")
+        e.insert(0, config["n"][i]); e.pack(side=tk.LEFT, expand=True, fill="x", ipady=8, padx=5)
+        ents.append(e)
+
+    def start():
+        nv = [e.get() for e in ents]
+        save_config(nv); root.destroy(); start_logic(nv)
+
+    tk.Button(root, text="START MISSION", command=start, bg="#BB86FC", fg="#000", font=("Segoe UI", 13, "bold"), pady=15, bd=0).pack(pady=30, padx=50, fill="x")
+    root.mainloop()
+
+if __name__ == "__main__":
+    show_setup_ui()
