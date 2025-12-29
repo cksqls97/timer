@@ -195,7 +195,7 @@ def start_logic(names):
         ov_root = tk.Tk(); ov_root.title("Resurrection_Timer")
         ov_root.attributes("-topmost", True, "-alpha", 0.95); ov_root.overrideredirect(True)
         ov_root.configure(bg="#0F0F0F")
-        w, h = 260, 360 # 오버레이 창 크기 축소 (320x520 -> 260x360)
+        w, h = 260, 360 
         ov_root.geometry(f"{w}x{h}+{ov_root.winfo_screenwidth()-w-20}+{ov_root.winfo_screenheight()-h-100}")
         def sm(e): ov_root.x, ov_root.y = e.x, e.y
         def dm(e): ov_root.geometry(f"+{ov_root.winfo_x()+(e.x-ov_root.x)}+{ov_root.winfo_y()+(e.y-ov_root.y)}")
@@ -207,28 +207,42 @@ def start_logic(names):
         tk.Button(header, text="?", bg="#1A1A1A", fg="#888", bd=0, command=show_manual, font=("Arial", 8)).pack(side=tk.RIGHT, padx=5)
         tk.Button(header, text="⚙", bg="#1A1A1A", fg="#888", bd=0, command=go_to_setup, font=("Arial", 8)).pack(side=tk.RIGHT)
         main = tk.Frame(ov_root, bg="#0F0F0F", padx=5, pady=5); main.pack(fill="both", expand=True)
+        
         def make_card(parent, k, is_guest=False):
+            # 카드를 중앙 정렬하기 위해 컨테이너 설정
             c = tk.Frame(parent, bg="#1E1E1E", bd=0, highlightthickness=1, highlightbackground="#333")
-            nl = tk.Label(c, text=u[k], fg="#AAAAAA", bg="#1E1E1E", font=("Malgun Gothic", 8))
-            tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 11, "bold"))
-            rl = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"))
-            msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 7, "bold"))
-            nl.pack(pady=(2,0)); tl.pack(pady=0); rl.pack(pady=0); msg.pack(pady=(0,2))
+            
+            # 카드 내부의 위젯들이 가로로 중앙에 오도록 anchor="center" 및 justify="center" 추가
+            nl = tk.Label(c, text=u[k], fg="#AAAAAA", bg="#1E1E1E", font=("Malgun Gothic", 8), anchor="center")
+            tl = tk.Label(c, text="READY", fg="#BB86FC" if not is_guest else "#03DAC6", bg="#1E1E1E", font=("Segoe UI", 11, "bold"), anchor="center")
+            rl = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 8, "bold"), anchor="center")
+            msg = tk.Label(c, text="", fg="#FF5252", bg="#1E1E1E", font=("Malgun Gothic", 7, "bold"), anchor="center")
+            
+            # pack 시 expand=True를 사용하여 수직 방향으로도 균형을 잡음
+            nl.pack(pady=(5,0), fill="x")
+            tl.pack(pady=2, fill="x")
+            rl.pack(pady=2, fill="x")
+            msg.pack(pady=(0,5), fill="x")
+            
             widgets = [c, nl, tl, rl, msg]
             for w_ in widgets:
                 w_.bind("<Button-1>", lambda e, x=k: on_click_event(x))
                 if not is_guest:
                     w_.bind("<Button-3>", lambda e, x=k: toggle_status(x))
             return c, nl, tl, rl, msg
+
         for i, k in enumerate(['f1','f2','f3','f4']):
             c, nl, tl, rl, m = make_card(main, k)
             c.grid(row=i//2, column=i%2, padx=2, pady=2, sticky="nsew")
             ov_elements[k] = (c, nl, tl, rl, m)
+            
         c, nl, tl, rl, m = make_card(main, 'f5', is_guest=True)
         c.grid(row=2, column=0, columnspan=2, padx=2, pady=2, sticky="nsew")
         ov_elements['f5'] = (c, nl, tl, rl, m)
+        
         main.grid_columnconfigure(0, weight=1); main.grid_columnconfigure(1, weight=1)
         main.grid_rowconfigure(0, weight=1); main.grid_rowconfigure(1, weight=1); main.grid_rowconfigure(2, weight=1)
+        
         def auto_tick():
             if ov_root.winfo_exists(): update_display(); ov_root.after(1000, auto_tick)
         auto_tick()
@@ -238,7 +252,7 @@ def start_logic(names):
 
 def show_setup_ui():
     root = tk.Tk(); root.title("Resurrection_Timer Setup")
-    root.geometry("340x380"); root.configure(bg="#121212") # 설정 창 크기 축소 (400x520 -> 340x380)
+    root.geometry("340x380"); root.configure(bg="#121212") 
     root.eval('tk::PlaceWindow . center')
     config = load_config()
     header = tk.Frame(root, bg="#1A1A1A", pady=10); header.pack(fill="x")
