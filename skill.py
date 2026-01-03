@@ -126,7 +126,7 @@ def start_logic(names):
     def auto_clipboard_tick():
         if ov_root.winfo_exists():
             update_clipboard()
-            ov_root.after(60000, auto_clipboard_tick)
+            ov_root.after(1000, auto_clipboard_tick)
 
     def update_display():
         now = datetime.datetime.now()
@@ -161,7 +161,6 @@ def start_logic(names):
             m, s = divmod(int(diff.total_seconds()), 60)
             tl.config(text=nt_times['f5'].strftime('%H시 %M분'), fg="#FFD1D1", font=("Malgun Gothic", 10, "bold"))
             rl.config(text=f"남은 시간: {m}분 {s}초", fg="#FF5252", font=("Malgun Gothic", 8, "bold"))
-            # 손님 칸의 mm분 여유/리저 부족 텍스트 메시지 표시부 제거 (항상 빈 문자열)
             msg.config(text="") 
             global guest_beep_flag
             if 58 <= (nt_times['f5'] - now).total_seconds() <= 61 and not guest_beep_flag:
